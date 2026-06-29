@@ -1,0 +1,16 @@
+﻿.idea/
+.dart_tool/
+build/
+dist/
+node_modules/
+.env
+.env.local
+firebase_options.dart
+*.jks
+*.keystore
+*.apk
+*.aab
+*.ipa
+.gradle/
+.m2/
+xcuserdata/

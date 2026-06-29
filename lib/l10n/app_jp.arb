@@ -1,0 +1,61 @@
+{
+  "@@locale": "ja",
+
+  "app_title": "Card Crown",
+
+  "home_title": "Card Crown",
+  "home_myCards": "私のカード一覧",
+  "home_pvpButton": "⚔️ PvP対戦",
+  "home_tutorialButton": "🤖 AIで練習",
+  "home_defenseDeckLabel": "現在の防衛デッキ",
+  "home_changeDeckButton": "防衛デッキを変更",
+  "home_createCardButton": "新しいカードを作成 🪙50",
+
+  "bonusBanner_today": "本日獲得コイン",
+  "bonusBanner_total": "累積",
+  "bonusBanner_limit": "/ 🪙20",
+
+  "battle_win": "勝ちました！",
+  "battle_loss": "負けました",
+  "battle_bonus": "🪙{points} コイン獲得",
+  "battle_limitReached": "本日の上限(🪙20)に達しました。明日0時にリセット。",
+  "battle_draw": "引き分け",
+  "battle_opponent": "対戦相手",
+  "battle_yourDeck": "あなたのデッキ",
+  "battle_opponentDeck": "相手のデッキ",
+
+  "card_create": "新しいカードを作成する",
+  "card_selectAttribute": "属性を選択",
+  "card_selectCost": "コストを選択",
+  "card_selectParameters": "パラメータを配分",
+  "card_selectTone": "このカードのトーンを選択してください",
+  "card_cute": "かわいい系",
+  "card_cool": "かっこいい系",
+  "card_dark": "深刻系",
+  "card_elegant": "優雅系",
+  "card_normal": "普通",
+  "card_attack": "攻撃力",
+  "card_defense": "防御力",
+  "card_speed": "速度",
+
+  "attribute_joy": "喜",
+  "attribute_anger": "怒",
+  "attribute_sadness": "哀",
+
+  "rank_bronze": "ブロンズ",
+  "rank_silver": "シルバー",
+  "rank_gold": "ゴールド",
+  "rank_platinum": "プラチナ",
+  "rank_diamond": "ダイヤモンド",
+
+  "ranking_title": "ランキング",
+  "ranking_myTier": "あなたのTier",
+  "ranking_topPlayers": "上位プレイヤー",
+
+  "settings_title": "設定",
+  "settings_myBonus": "ボーナスポイント詳細",
+  "settings_purchaseHistory": "購買履歴",
+  "settings_language": "言語設定",
+  "settings_policy": "ポリシー",
+  "settings_contact": "お問い合わせ"
+}

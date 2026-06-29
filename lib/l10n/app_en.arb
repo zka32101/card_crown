@@ -1,0 +1,61 @@
+{
+  "@@locale": "en",
+
+  "app_title": "Card Crown",
+
+  "home_title": "Card Crown",
+  "home_myCards": "My Cards",
+  "home_pvpButton": "⚔️ PvP Battle",
+  "home_tutorialButton": "🤖 AI Practice",
+  "home_defenseDeckLabel": "Current Defense Deck",
+  "home_changeDeckButton": "Change Defense Deck",
+  "home_createCardButton": "Create New Card ¥150",
+
+  "bonusBanner_today": "Today's Bonus",
+  "bonusBanner_total": "Total",
+  "bonusBanner_limit": "/ ¥20",
+
+  "battle_win": "You Won!",
+  "battle_loss": "You Lost",
+  "battle_bonus": "Bonus +¥{points}",
+  "battle_limitReached": "Daily limit (¥20) reached. Resets at 00:00 JST.",
+  "battle_draw": "Draw",
+  "battle_opponent": "Opponent",
+  "battle_yourDeck": "Your Deck",
+  "battle_opponentDeck": "Opponent's Deck",
+
+  "card_create": "Create New Card",
+  "card_selectAttribute": "Select Attribute",
+  "card_selectCost": "Select Cost",
+  "card_selectParameters": "Allocate Parameters",
+  "card_selectTone": "Select Tone for This Card",
+  "card_cute": "Cute",
+  "card_cool": "Cool",
+  "card_dark": "Dark",
+  "card_elegant": "Elegant",
+  "card_normal": "Normal",
+  "card_attack": "Attack",
+  "card_defense": "Defense",
+  "card_speed": "Speed",
+
+  "attribute_joy": "Joy",
+  "attribute_anger": "Anger",
+  "attribute_sadness": "Sadness",
+
+  "rank_bronze": "Bronze",
+  "rank_silver": "Silver",
+  "rank_gold": "Gold",
+  "rank_platinum": "Platinum",
+  "rank_diamond": "Diamond",
+
+  "ranking_title": "Ranking",
+  "ranking_myTier": "Your Tier",
+  "ranking_topPlayers": "Top Players",
+
+  "settings_title": "Settings",
+  "settings_myBonus": "Bonus Points Details",
+  "settings_purchaseHistory": "Purchase History",
+  "settings_language": "Language",
+  "settings_policy": "Policy",
+  "settings_contact": "Contact Us"
+}

@@ -1,0 +1,187 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class UserCard {
+  final String cardId;
+  final String userId;
+  final String attribute; // "joy", "anger", "sadness"
+  final int cost;
+  final int attackPower;
+  final int defensePower;
+  final int speed;
+  final Map<String, String> cardName; // {"jp": "...", "en": "..."}
+  final Map<String, String> cardDescription;
+  final String imageUrl;
+  final String imagePromptUsed;
+  final int bonusPointsEarned;
+  final int totalVictoriesWithCard;
+  final int todayVictoriesCount;
+  final int wins;
+  final int losses;
+  final Timestamp createdAt;
+
+  UserCard({
+    required this.cardId,
+    required this.userId,
+    required this.attribute,
+    required this.cost,
+    required this.attackPower,
+    required this.defensePower,
+    required this.speed,
+    required this.cardName,
+    required this.cardDescription,
+    this.imageUrl = '',
+    this.imagePromptUsed = '',
+    this.bonusPointsEarned = 0,
+    this.totalVictoriesWithCard = 0,
+    this.todayVictoriesCount = 0,
+    this.wins = 0,
+    this.losses = 0,
+    required this.createdAt,
+  });
+
+  String get nameJp => cardName['jp'] ?? '';
+  String get nameEn => cardName['en'] ?? '';
+
+  String getCardType() {
+    final params = [attackPower, defensePower, speed];
+    final max = params.reduce((a, b) => a > b ? a : b);
+    if (attackPower == max && attackPower > defensePower && attackPower > speed) return 'attack';
+    if (defensePower == max && defensePower > attackPower && defensePower > speed) return 'defense';
+    if (speed == max && speed > attackPower && speed > defensePower) return 'speed';
+    return 'balance';
+  }
+
+  double get winRate => (wins + losses) == 0 ? 0 : wins / (wins + losses);
+
+  Map<String, dynamic> toMap() => {
+    'cardId': cardId,
+    'userId': userId,
+    'attribute': attribute,
+    'cost': cost,
+    'attackPower': attackPower,
+    'defensePower': defensePower,
+    'speed': speed,
+    'cardName': cardName,
+    'cardDescription': cardDescription,
+    'imageUrl': imageUrl,
+    'imagePromptUsed': imagePromptUsed,
+    'bonusPointsEarned': bonusPointsEarned,
+    'totalVictoriesWithCard': totalVictoriesWithCard,
+    'todayVictoriesCount': todayVictoriesCount,
+    'wins': wins,
+    'losses': losses,
+    'createdAt': createdAt,
+  };
+
+  factory UserCard.fromMap(Map<String, dynamic> map) => UserCard(
+    cardId: map['cardId'] ?? '',
+    userId: map['userId'] ?? '',
+    attribute: map['attribute'] ?? 'joy',
+    cost: map['cost'] ?? 1,
+    attackPower: map['attackPower'] ?? 0,
+    defensePower: map['defensePower'] ?? 0,
+    speed: map['speed'] ?? 0,
+    cardName: Map<String, String>.from(map['cardName'] ?? {'jp': '', 'en': ''}),
+    cardDescription: Map<String, String>.from(map['cardDescription'] ?? {'jp': '', 'en': ''}),
+    imageUrl: map['imageUrl'] ?? '',
+    imagePromptUsed: map['imagePromptUsed'] ?? '',
+    bonusPointsEarned: map['bonusPointsEarned'] ?? 0,
+    totalVictoriesWithCard: map['totalVictoriesWithCard'] ?? 0,
+    todayVictoriesCount: map['todayVictoriesCount'] ?? 0,
+    wins: map['wins'] ?? 0,
+    losses: map['losses'] ?? 0,
+    createdAt: map['createdAt'] ?? Timestamp.now(),
+  );
+
+  UserCard copyWith({
+    String? imageUrl,
+    Map<String, String>? cardName,
+    int? wins,
+    int? losses,
+    int? bonusPointsEarned,
+    int? totalVictoriesWithCard,
+    int? todayVictoriesCount,
+  }) {
+    return UserCard(
+      cardId: cardId,
+      userId: userId,
+      attribute: attribute,
+      cost: cost,
+      attackPower: attackPower,
+      defensePower: defensePower,
+      speed: speed,
+      cardName: cardName ?? this.cardName,
+      cardDescription: cardDescription,
+      imageUrl: imageUrl ?? this.imageUrl,
+      imagePromptUsed: imagePromptUsed,
+      bonusPointsEarned: bonusPointsEarned ?? this.bonusPointsEarned,
+      totalVictoriesWithCard: totalVictoriesWithCard ?? this.totalVictoriesWithCard,
+      todayVictoriesCount: todayVictoriesCount ?? this.todayVictoriesCount,
+      wins: wins ?? this.wins,
+      losses: losses ?? this.losses,
+      createdAt: createdAt,
+    );
+  }
+}
+
+// カードレアリティ
+enum CardRarity { n, r, sr, ur }
+
+// ユーザーとシードカード両方を統一的に扱う抽象カード
+class PlayCard {
+  final String cardId;
+  final String attribute;
+  final int cost;
+  final int attackPower;
+  final int defensePower;
+  final int speed;
+  final String nameJp;
+  final String imageUrl;
+  final bool isSeedCard;
+
+  PlayCard({
+    required this.cardId,
+    required this.attribute,
+    required this.cost,
+    required this.attackPower,
+    required this.defensePower,
+    required this.speed,
+    required this.nameJp,
+    this.imageUrl = '',
+    this.isSeedCard = true,
+  });
+
+  CardRarity get rarity => switch (cost) {
+    1 => CardRarity.n,
+    2 => CardRarity.r,
+    3 => CardRarity.r,
+    4 => CardRarity.sr,
+    _ => CardRarity.ur,
+  };
+
+  String get rarityLabel => switch (rarity) {
+    CardRarity.n => 'N',
+    CardRarity.r => 'R',
+    CardRarity.sr => 'SR',
+    CardRarity.ur => 'UR',
+  };
+
+  String getCardType() {
+    final params = [attackPower, defensePower, speed];
+    final max = params.reduce((a, b) => a > b ? a : b);
+    if (attackPower == max && attackPower > defensePower && attackPower > speed) return 'attack';
+    if (defensePower == max && defensePower > attackPower && defensePower > speed) return 'defense';
+    if (speed == max && speed > attackPower && speed > defensePower) return 'speed';
+    return 'balance';
+  }
+
+  Map<String, dynamic> toSnapshot() => {
+    'cardId': cardId,
+    'attribute': attribute,
+    'attackPower': attackPower,
+    'defensePower': defensePower,
+    'speed': speed,
+    'imageUrl': imageUrl,
+    'cardNameJp': nameJp,
+  };
+}
