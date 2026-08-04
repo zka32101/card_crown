@@ -38,6 +38,7 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
   int _streakBonus = 0;
   int _newStreak = 0;
   int _pvpBonusGranted = 0;
+  bool _shieldUsed = false;
 
   @override
   void initState() {
@@ -77,6 +78,12 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
           w.copyWith(winStreak: _newStreak).grantDailyBonus(rawBonus);
       _streakBonus = granted;
       ref.read(walletProvider.notifier).state = updatedWallet;
+    } else if (w.streakShieldCount > 0) {
+      // 連勝シールドを消費して連勝数を維持する
+      _shieldUsed = true;
+      _newStreak = w.winStreak;
+      ref.read(walletProvider.notifier).state =
+          w.copyWith(streakShieldCount: w.streakShieldCount - 1);
     } else {
       _newStreak = 0;
       ref.read(walletProvider.notifier).state = w.copyWith(winStreak: 0);
@@ -199,6 +206,11 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
 
                   // 勝敗表示
                   _buildResultHeader(isWin, accent),
+
+                  if (!isWin && _shieldUsed) ...[
+                    const SizedBox(height: 12),
+                    _buildShieldUsedPanel(),
+                  ],
 
                   const SizedBox(height: 30),
 
@@ -489,6 +501,26 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
                         color: Kingdom.parchment)),
                 Text(t.battleResult_streakLabel, style: TextStyle(fontSize: 10, color: Kingdom.parchment.withValues(alpha: 0.7))),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShieldUsedPanel() {
+    final t = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: OrnateFrame(
+        accent: Kingdom.sadnessIndigo,
+        child: Row(
+          children: [
+            const Text('🛡️', style: TextStyle(fontSize: 24)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(t.battleResult_shieldUsed(_newStreak),
+                  style: Kingdom.label(size: 13, color: Kingdom.parchment)),
             ),
           ],
         ),

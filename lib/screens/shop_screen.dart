@@ -61,6 +61,48 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
     }
   }
 
+  void _buyStreakShield() {
+    final t = AppLocalizations.of(context)!;
+    final wallet = ref.read(walletProvider);
+    if (wallet.gemBalance < kStreakShieldGemCost) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.shop_insufficientGems), backgroundColor: Kingdom.angerCrimson),
+      );
+      return;
+    }
+    final updated = wallet.buyStreakShield();
+    ref.read(walletProvider.notifier).state = updated;
+    final userId = ref.read(currentUserIdProvider);
+    if (userId != null) updateWallet(userId, updated);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(t.shop_exchangeSuccess)),
+    );
+  }
+
+  void _extendDailyBonusCap() {
+    final t = AppLocalizations.of(context)!;
+    final wallet = ref.read(walletProvider);
+    if (wallet.dailyBonusCapExtensionsUsedToday >= kDailyBonusCapExtensionMaxPerDay) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.shop_dailyBonusCapExtMaxReached), backgroundColor: Kingdom.angerCrimson),
+      );
+      return;
+    }
+    if (wallet.gemBalance < kDailyBonusCapExtensionGemCost) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.shop_insufficientGems), backgroundColor: Kingdom.angerCrimson),
+      );
+      return;
+    }
+    final updated = wallet.extendDailyBonusCap();
+    ref.read(walletProvider.notifier).state = updated;
+    final userId = ref.read(currentUserIdProvider);
+    if (userId != null) updateWallet(userId, updated);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(t.shop_exchangeSuccess)),
+    );
+  }
+
   Future<void> _restore() async {
     final ok = await PurchaseService.restorePurchases();
     if (!mounted) return;
@@ -136,6 +178,28 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
                   ),
                   const SizedBox(height: Kingdom.spaceMd),
                 ],
+                const SizedBox(height: Kingdom.spaceLg),
+
+                Text(t.shop_gemExchangeHeader, style: Kingdom.label(size: 15, color: Kingdom.sadnessIndigo)),
+                const SizedBox(height: Kingdom.spaceMd),
+                _ExchangeTile(
+                  emoji: '🛡️',
+                  label: t.shop_streakShieldLabel(wallet.streakShieldCount),
+                  description: t.shop_streakShieldDesc,
+                  costLabel: '💎$kStreakShieldGemCost',
+                  accent: Kingdom.sadnessIndigo,
+                  onTap: _buyStreakShield,
+                ),
+                const SizedBox(height: Kingdom.spaceMd),
+                _ExchangeTile(
+                  emoji: '⏫',
+                  label: t.shop_dailyBonusCapExtLabel(kDailyBonusCapExtensionAmount),
+                  description: t.shop_dailyBonusCapExtDesc(
+                      wallet.dailyBonusCapExtensionsUsedToday, kDailyBonusCapExtensionMaxPerDay),
+                  costLabel: '💎$kDailyBonusCapExtensionGemCost',
+                  accent: Kingdom.sadnessIndigo,
+                  onTap: _extendDailyBonusCap,
+                ),
                 const SizedBox(height: Kingdom.spaceXl),
 
                 Text(
@@ -173,6 +237,60 @@ class _BalanceDisplay extends StatelessWidget {
         const SizedBox(height: Kingdom.spaceXs),
         Text(label, style: TextStyle(fontSize: 11, color: Kingdom.parchment.withValues(alpha: 0.6))),
       ],
+    );
+  }
+}
+
+class _ExchangeTile extends StatelessWidget {
+  final String emoji;
+  final String label;
+  final String description;
+  final String costLabel;
+  final Color accent;
+  final VoidCallback onTap;
+
+  const _ExchangeTile({
+    required this.emoji,
+    required this.label,
+    required this.description,
+    required this.costLabel,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return OrnateFrame(
+      accent: accent,
+      showCorners: false,
+      padding: const EdgeInsets.symmetric(horizontal: Kingdom.spaceLg, vertical: Kingdom.spaceMd),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 28)),
+          const SizedBox(width: Kingdom.spaceMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: TextStyle(color: Kingdom.parchment, fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(description, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.6), fontSize: 11)),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: Kingdom.minTapTarget,
+            child: ElevatedButton(
+              onPressed: onTap,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accent,
+                foregroundColor: Kingdom.night,
+                minimumSize: const Size(70, Kingdom.minTapTarget),
+              ),
+              child: Text(costLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -34,6 +34,14 @@ final selectedAttackDeckProvider = StateProvider<List<PlayCard>>((ref) => []);
 // UI文言「1日上限🪙20」に対応する、実際に強制する側の定数
 const int kDailyBonusCoinCap = 20;
 
+// ジェムの使い道（機能ブースト）
+// 連勝シールド: 敗北時に1個消費して連勝数のリセットを防ぐ
+const int kStreakShieldGemCost = 3;
+// 本日のデイリーボーナス上限を+20拡張する（1日に購入できる回数の上限あり）
+const int kDailyBonusCapExtensionGemCost = 5;
+const int kDailyBonusCapExtensionAmount = 20;
+const int kDailyBonusCapExtensionMaxPerDay = 2;
+
 // JST（UTC+9）基準の「今日」を yyyy-MM-dd 文字列で返す
 // 端末のタイムゾーン設定に依存せず日次リセットの境界を揃えるため
 String todayKeyJst() {
@@ -53,6 +61,9 @@ class WalletState {
   final int winStreak; // 連勝数
   final int dailyBonusCoinsEarned; // dailyBonusDate内で連勝/PvPボーナスにより獲得した累計コイン
   final String dailyBonusDate; // dailyBonusCoinsEarned が対応する日付（JST, yyyy-MM-dd）
+  final int streakShieldCount; // 連勝シールドの所持数（ジェムで購入、敗北時に自動消費）
+  final int dailyBonusCapExtra; // dailyBonusCapExtraDate内でジェム購入により拡張された当日の追加上限
+  final String dailyBonusCapExtraDate; // dailyBonusCapExtra が対応する日付（JST, yyyy-MM-dd）
 
   const WalletState({
     this.totalPoints = 0,
@@ -63,6 +74,9 @@ class WalletState {
     this.winStreak = 0,
     this.dailyBonusCoinsEarned = 0,
     this.dailyBonusDate = '',
+    this.streakShieldCount = 0,
+    this.dailyBonusCapExtra = 0,
+    this.dailyBonusCapExtraDate = '',
   });
 
   WalletState copyWith({
@@ -74,6 +88,9 @@ class WalletState {
     int? winStreak,
     int? dailyBonusCoinsEarned,
     String? dailyBonusDate,
+    int? streakShieldCount,
+    int? dailyBonusCapExtra,
+    String? dailyBonusCapExtraDate,
   }) =>
     WalletState(
       totalPoints: totalPoints ?? this.totalPoints,
@@ -84,6 +101,9 @@ class WalletState {
       winStreak: winStreak ?? this.winStreak,
       dailyBonusCoinsEarned: dailyBonusCoinsEarned ?? this.dailyBonusCoinsEarned,
       dailyBonusDate: dailyBonusDate ?? this.dailyBonusDate,
+      streakShieldCount: streakShieldCount ?? this.streakShieldCount,
+      dailyBonusCapExtra: dailyBonusCapExtra ?? this.dailyBonusCapExtra,
+      dailyBonusCapExtraDate: dailyBonusCapExtraDate ?? this.dailyBonusCapExtraDate,
     );
 
   /// 連勝ボーナス: 3連勝=+5, 5連勝=+10, 7連勝+=+15
@@ -94,12 +114,18 @@ class WalletState {
     return 0;
   }
 
-  // 今日すでに使った分を差し引いた、残りの1日ボーナス上限
+  // 今日のジェム購入による拡張分（他の日の値は無視する）
+  int get _todayCapExtra => dailyBonusCapExtraDate == todayKeyJst() ? dailyBonusCapExtra : 0;
+
+  // 今日すでに使った分を差し引いた、残りの1日ボーナス上限（ジェム拡張分を含む）
   int get remainingDailyBonusCap {
     final earnedToday = dailyBonusDate == todayKeyJst() ? dailyBonusCoinsEarned : 0;
-    final remaining = kDailyBonusCoinCap - earnedToday;
+    final remaining = (kDailyBonusCoinCap + _todayCapExtra) - earnedToday;
     return remaining < 0 ? 0 : remaining;
   }
+
+  // 本日すでにジェムで購入した上限拡張の回数（kDailyBonusCapExtensionMaxPerDayとの比較用）
+  int get dailyBonusCapExtensionsUsedToday => _todayCapExtra ~/ kDailyBonusCapExtensionAmount;
 
   // 1日上限を考慮した上で、実際に獲得した後のウォレット状態を返す
   // 戻り値: (更新後のWalletState, 実際に加算されたコイン額)
@@ -107,7 +133,7 @@ class WalletState {
     if (rawAmount <= 0) return (this, 0);
     final today = todayKeyJst();
     final earnedToday = dailyBonusDate == today ? dailyBonusCoinsEarned : 0;
-    final remaining = kDailyBonusCoinCap - earnedToday;
+    final remaining = (kDailyBonusCoinCap + _todayCapExtra) - earnedToday;
     final granted = rawAmount > remaining ? (remaining < 0 ? 0 : remaining) : rawAmount;
     if (granted <= 0) return (this, 0);
     return (
@@ -120,6 +146,23 @@ class WalletState {
     );
   }
 
+  // ジェムで本日のデイリーボーナス上限を+kDailyBonusCapExtensionAmountする。
+  // 呼び出し側でgemBalance/dailyBonusCapExtensionsUsedTodayの上限チェック済みであること。
+  WalletState extendDailyBonusCap() {
+    final today = todayKeyJst();
+    return copyWith(
+      gemBalance: gemBalance - kDailyBonusCapExtensionGemCost,
+      dailyBonusCapExtra: _todayCapExtra + kDailyBonusCapExtensionAmount,
+      dailyBonusCapExtraDate: today,
+    );
+  }
+
+  // ジェムで連勝シールドを1個購入する。呼び出し側でgemBalanceの上限チェック済みであること。
+  WalletState buyStreakShield() => copyWith(
+        gemBalance: gemBalance - kStreakShieldGemCost,
+        streakShieldCount: streakShieldCount + 1,
+      );
+
   Map<String, dynamic> toMap() => {
     'totalPoints': totalPoints,
     'todayPoints': todayPoints,
@@ -129,6 +172,9 @@ class WalletState {
     'winStreak': winStreak,
     'dailyBonusCoinsEarned': dailyBonusCoinsEarned,
     'dailyBonusDate': dailyBonusDate,
+    'streakShieldCount': streakShieldCount,
+    'dailyBonusCapExtra': dailyBonusCapExtra,
+    'dailyBonusCapExtraDate': dailyBonusCapExtraDate,
     'updatedAt': FieldValue.serverTimestamp(),
   };
 
@@ -142,6 +188,9 @@ class WalletState {
       winStreak: map['winStreak'] ?? 0,
       dailyBonusCoinsEarned: map['dailyBonusCoinsEarned'] ?? 0,
       dailyBonusDate: map['dailyBonusDate'] ?? '',
+      streakShieldCount: map['streakShieldCount'] ?? 0,
+      dailyBonusCapExtra: map['dailyBonusCapExtra'] ?? 0,
+      dailyBonusCapExtraDate: map['dailyBonusCapExtraDate'] ?? '',
     );
   }
 }
