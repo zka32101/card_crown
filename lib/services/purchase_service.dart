@@ -1,0 +1,176 @@
+import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+
+// RevenueCat Offering / Package IDs
+// ※ RevenueCatダッシュボード側で同名のOffering/Packageを作成しておくこと
+const String kCardCreateOffering = 'card_create'; // ¥150（カード作成1回）
+const String kStarterPackOffering = 'starter_pack'; // ¥300（3枚分）
+const String kCurrencyShopOffering = 'currency_shop'; // コイン/ジェムパック各種
+
+const String kRevenueCatApiKeyAndroid = 'YOUR_REVENUECAT_ANDROID_API_KEY';
+const String kRevenueCatApiKeyIos = 'YOUR_REVENUECAT_IOS_API_KEY';
+
+// コイン/ジェムパック定義（RevenueCat側のPackage識別子と1:1で対応させる）
+class CurrencyPackageDef {
+  final String packageId; // RevenueCat Package identifier
+  final String label;
+  final int amount; // ボーナス込みの実際の付与量
+  final String fallbackPriceLabel; // ストア価格が取得できない場合の表示用
+  final bool isGem;
+
+  const CurrencyPackageDef({
+    required this.packageId,
+    required this.label,
+    required this.amount,
+    required this.fallbackPriceLabel,
+    required this.isGem,
+  });
+}
+
+const List<CurrencyPackageDef> kCoinPackages = [
+  CurrencyPackageDef(
+    packageId: 'coin_100',
+    label: 'コイン100枚',
+    amount: 100,
+    fallbackPriceLabel: '¥120',
+    isGem: false,
+  ),
+  CurrencyPackageDef(
+    packageId: 'coin_500',
+    label: 'コイン500枚 +ボーナス50枚',
+    amount: 550,
+    fallbackPriceLabel: '¥480',
+    isGem: false,
+  ),
+  CurrencyPackageDef(
+    packageId: 'coin_1200',
+    label: 'コイン1200枚 +ボーナス200枚',
+    amount: 1400,
+    fallbackPriceLabel: '¥980',
+    isGem: false,
+  ),
+];
+
+const List<CurrencyPackageDef> kGemPackages = [
+  CurrencyPackageDef(
+    packageId: 'gem_10',
+    label: 'ジェム10個',
+    amount: 10,
+    fallbackPriceLabel: '¥120',
+    isGem: true,
+  ),
+  CurrencyPackageDef(
+    packageId: 'gem_50',
+    label: 'ジェム50個 +ボーナス5個',
+    amount: 55,
+    fallbackPriceLabel: '¥480',
+    isGem: true,
+  ),
+  CurrencyPackageDef(
+    packageId: 'gem_120',
+    label: 'ジェム120個 +ボーナス20個',
+    amount: 140,
+    fallbackPriceLabel: '¥980',
+    isGem: true,
+  ),
+];
+
+class PurchaseService {
+  static bool _initialized = false;
+
+  static Future<void> init() async {
+    if (_initialized) return;
+
+    await Purchases.setLogLevel(kDebugMode ? LogLevel.debug : LogLevel.error);
+
+    PurchasesConfiguration config;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      config = PurchasesConfiguration(kRevenueCatApiKeyAndroid);
+    } else {
+      config = PurchasesConfiguration(kRevenueCatApiKeyIos);
+    }
+
+    await Purchases.configure(config);
+    _initialized = true;
+  }
+
+  // Offering内の最初の（通常唯一の）パッケージを購入する共通処理。
+  // card_create/starter_packは「1回きりの解放」であり定期購読ではないため、
+  // 特定の期間区分（.monthly等）を決め打ちで参照せず、Offeringが持つ
+  // パッケージをそのまま使う（旧実装は存在しないsubscription用の.monthlyを
+  // 参照しており常にnoProductになるバグがあった）。
+  static Future<PurchaseResult> _purchaseFirstPackage(String offeringId) async {
+    try {
+      final offerings = await Purchases.getOfferings();
+      final offering = offerings.getOffering(offeringId);
+      if (offering == null || offering.availablePackages.isEmpty) {
+        return PurchaseResult.noProduct;
+      }
+      await Purchases.purchasePackage(offering.availablePackages.first);
+      return PurchaseResult.success;
+    } on PlatformException catch (e) {
+      final code = PurchasesErrorHelper.getErrorCode(e);
+      if (code == PurchasesErrorCode.purchaseCancelledError) {
+        return PurchaseResult.cancelled;
+      }
+      debugPrint('Purchase error ($offeringId): ${e.message}');
+      return PurchaseResult.error;
+    } catch (e) {
+      debugPrint('Purchase error ($offeringId): $e');
+      return PurchaseResult.error;
+    }
+  }
+
+  // ¥150 カード作成課金
+  static Future<PurchaseResult> purchaseCardCreation() =>
+      _purchaseFirstPackage(kCardCreateOffering);
+
+  // スターターパック ¥300（3枚分）
+  static Future<PurchaseResult> purchaseStarterPack() =>
+      _purchaseFirstPackage(kStarterPackOffering);
+
+  // コイン/ジェムパック購入（currency_shop Offering内のpackageIdで指定）
+  static Future<PurchaseResult> purchaseCurrencyPackage(String packageId) async {
+    try {
+      final offerings = await Purchases.getOfferings();
+      final offering = offerings.getOffering(kCurrencyShopOffering);
+      if (offering == null) return PurchaseResult.noProduct;
+
+      Package? package;
+      for (final p in offering.availablePackages) {
+        if (p.identifier == packageId) {
+          package = p;
+          break;
+        }
+      }
+      if (package == null) return PurchaseResult.noProduct;
+
+      await Purchases.purchasePackage(package);
+      return PurchaseResult.success;
+    } on PlatformException catch (e) {
+      final code = PurchasesErrorHelper.getErrorCode(e);
+      if (code == PurchasesErrorCode.purchaseCancelledError) {
+        return PurchaseResult.cancelled;
+      }
+      debugPrint('Purchase error ($packageId): ${e.message}');
+      return PurchaseResult.error;
+    } catch (e) {
+      debugPrint('Purchase error ($packageId): $e');
+      return PurchaseResult.error;
+    }
+  }
+
+  // 購入復元
+  static Future<bool> restorePurchases() async {
+    try {
+      await Purchases.restorePurchases();
+      return true;
+    } catch (e) {
+      debugPrint('Restore purchases failed: $e');
+      return false;
+    }
+  }
+}
+
+enum PurchaseResult { success, cancelled, noProduct, error }

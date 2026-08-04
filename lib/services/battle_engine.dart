@@ -4,11 +4,15 @@ import '../models/user_card.dart';
 // 決定論的バトルシミュレーション（乱数なし）
 class BattleEngine {
   static const int initialHp = 30;
+  // 「属性の国」移住ボーナス：移住先属性のカードで攻撃した際に加算される倍率
+  static const double migrationBonus = 0.15;
 
   static BattleResult simulate(
     List<PlayCard> attackerDeck,
-    List<PlayCard> defenderDeck,
-  ) {
+    List<PlayCard> defenderDeck, {
+    // attackerDeck側のプレイヤーが移住済みの属性（null = 移住なし）
+    String? migratedAttribute,
+  }) {
     int attackerHp = initialHp;
     int defenderHp = initialHp;
     final List<BattleLog> logs = [];
@@ -23,8 +27,10 @@ class BattleEngine {
       final bool attackerGoesFirst = attCard.speed >= defCard.speed;
 
       if (attackerGoesFirst) {
-        final m1 = getAttributeMultiplier(attCard.attribute, defCard.attribute);
-        final dmg1 = _calcDamage(attCard, defCard);
+        // attCard（attackerDeck側）が攻撃 → 移住ボーナス対象
+        final m1 = _effectiveMultiplier(attCard.attribute, defCard.attribute,
+            boosted: attCard.attribute == migratedAttribute);
+        final dmg1 = _damageFromMultiplier(attCard, defCard, m1);
         defenderHp -= dmg1;
         logs.add(BattleLog(
           turn: turn++,
@@ -39,8 +45,9 @@ class BattleEngine {
 
         if (defenderHp <= 0) break;
 
-        final m2 = getAttributeMultiplier(defCard.attribute, attCard.attribute);
-        final dmg2 = _calcDamage(defCard, attCard);
+        // defCard（defenderDeck側）が反撃 → 移住ボーナス対象外
+        final m2 = _effectiveMultiplier(defCard.attribute, attCard.attribute, boosted: false);
+        final dmg2 = _damageFromMultiplier(defCard, attCard, m2);
         attackerHp -= dmg2;
         logs.add(BattleLog(
           turn: turn++,
@@ -55,8 +62,9 @@ class BattleEngine {
 
         if (attackerHp <= 0) break;
       } else {
-        final m1 = getAttributeMultiplier(defCard.attribute, attCard.attribute);
-        final dmg1 = _calcDamage(defCard, attCard);
+        // defCard（defenderDeck側）が先制 → 移住ボーナス対象外
+        final m1 = _effectiveMultiplier(defCard.attribute, attCard.attribute, boosted: false);
+        final dmg1 = _damageFromMultiplier(defCard, attCard, m1);
         attackerHp -= dmg1;
         logs.add(BattleLog(
           turn: turn++,
@@ -71,8 +79,10 @@ class BattleEngine {
 
         if (attackerHp <= 0) break;
 
-        final m2 = getAttributeMultiplier(attCard.attribute, defCard.attribute);
-        final dmg2 = _calcDamage(attCard, defCard);
+        // attCard（attackerDeck側）が反撃 → 移住ボーナス対象
+        final m2 = _effectiveMultiplier(attCard.attribute, defCard.attribute,
+            boosted: attCard.attribute == migratedAttribute);
+        final dmg2 = _damageFromMultiplier(attCard, defCard, m2);
         defenderHp -= dmg2;
         logs.add(BattleLog(
           turn: turn++,
@@ -99,8 +109,13 @@ class BattleEngine {
     );
   }
 
-  static int _calcDamage(PlayCard attacker, PlayCard defender) {
-    final multiplier = getAttributeMultiplier(attacker.attribute, defender.attribute);
+  static double _effectiveMultiplier(String attackerAttribute, String defenderAttribute,
+      {required bool boosted}) {
+    final base = getAttributeMultiplier(attackerAttribute, defenderAttribute);
+    return boosted ? base + migrationBonus : base;
+  }
+
+  static int _damageFromMultiplier(PlayCard attacker, PlayCard defender, double multiplier) {
     final raw = (attacker.attackPower - defender.defensePower).toDouble();
     final dmg = (raw * multiplier).floor();
     return dmg < 1 ? 1 : dmg; // 最低1ダメージ保証

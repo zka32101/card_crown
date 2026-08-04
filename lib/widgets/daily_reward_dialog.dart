@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/kingdom_theme.dart';
+import '../l10n/app_localizations.dart';
 
 /// デイリーログインボーナス（7日間カレンダー＋連続ストリーク）
 class DailyRewardDialog extends StatefulWidget {
@@ -44,21 +46,23 @@ class _DailyRewardDialogState extends State<DailyRewardDialog> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final todayIndex = (widget.currentDay - 1).clamp(0, 6);
     final todayReward = DailyRewardDialog.rewards[todayIndex];
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: Kingdom.spaceXxl),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(Kingdom.spaceXl),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF2C3E50), Color(0xFF4A6491)],
+            colors: [Kingdom.nightDeep, Kingdom.sadnessIndigoDeep],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Kingdom.gilt.withValues(alpha: 0.5)),
           boxShadow: [
             BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 20, offset: const Offset(0, 8)),
           ],
@@ -66,10 +70,10 @@ class _DailyRewardDialogState extends State<DailyRewardDialog> with SingleTicker
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('🎁 デイリーボーナス', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 4),
-            Text('${widget.currentDay}日連続ログイン中 🔥', style: const TextStyle(fontSize: 13, color: Colors.amberAccent, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
+            Text(t.dailyReward_title, style: Kingdom.title(size: 20)),
+            const SizedBox(height: Kingdom.spaceXs),
+            Text(t.dailyReward_streakLabel(widget.currentDay), style: Kingdom.label(size: 13, color: Kingdom.gilt)),
+            const SizedBox(height: Kingdom.spaceXl),
 
             // 7日間カレンダー
             GridView.count(
@@ -89,50 +93,47 @@ class _DailyRewardDialogState extends State<DailyRewardDialog> with SingleTicker
                 return Container(
                   decoration: BoxDecoration(
                     color: isToday
-                        ? Colors.amber[600]
+                        ? Kingdom.gilt
                         : isPast
-                            ? Colors.white.withValues(alpha: 0.1)
-                            : Colors.white.withValues(alpha: 0.18),
+                            ? Kingdom.parchment.withValues(alpha: 0.08)
+                            : Kingdom.parchment.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: isToday ? Colors.white : (isBig ? Colors.amberAccent : Colors.transparent),
+                      color: isToday ? Kingdom.parchment : (isBig ? Kingdom.gilt : Colors.transparent),
                       width: isToday ? 2 : (isBig ? 1.5 : 0),
                     ),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('Day$day', style: TextStyle(fontSize: 9, color: isToday ? Colors.white : Colors.white70)),
+                      Text(t.dailyReward_dayLabel(day),
+                          style: TextStyle(fontSize: 9, color: isToday ? Kingdom.night : Kingdom.parchment.withValues(alpha: 0.7))),
                       const SizedBox(height: 2),
                       Text(isBig ? '🎉' : '🪙', style: const TextStyle(fontSize: 16)),
                       const SizedBox(height: 2),
-                      Text('$reward', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isToday ? Colors.white : Colors.white70)),
-                      if (isPast) const Icon(Icons.check_circle, size: 12, color: Colors.greenAccent),
+                      Text('$reward',
+                          style: TextStyle(
+                              fontSize: Kingdom.textCaption,
+                              fontWeight: FontWeight.bold,
+                              color: isToday ? Kingdom.night : Kingdom.parchment.withValues(alpha: 0.7))),
+                      if (isPast) Icon(Icons.check_circle, size: 12, color: Kingdom.joyGold),
                     ],
                   ),
                 );
               }),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: Kingdom.spaceXl),
 
             // 受取ボタン / 受取済み演出
             if (!_claimed)
-              SizedBox(
-                width: double.infinity,
+              RoyalButton(
+                label: t.dailyReward_claimButton(todayReward),
                 height: 52,
-                child: ElevatedButton(
-                  onPressed: () {
-                    setState(() => _claimed = true);
-                    _controller.forward();
-                    widget.onClaim(todayReward);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber[600],
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: Text('🪙$todayReward を受け取る', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
+                onPressed: () {
+                  setState(() => _claimed = true);
+                  _controller.forward();
+                  widget.onClaim(todayReward);
+                },
               )
             else
               ScaleTransition(
@@ -141,19 +142,21 @@ class _DailyRewardDialogState extends State<DailyRewardDialog> with SingleTicker
                 ),
                 child: Column(
                   children: [
-                    Text('+🪙$todayReward', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.amberAccent)),
-                    const SizedBox(height: 12),
+                    Text(t.dailyReward_claimedAmount(todayReward),
+                        style: TextStyle(
+                            fontFamily: Kingdom.displayFont, fontSize: 32, fontWeight: FontWeight.bold, color: Kingdom.gilt)),
+                    const SizedBox(height: Kingdom.spaceMd),
                     SizedBox(
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
                         onPressed: () => Navigator.pop(context),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: const Color(0xFF2C3E50),
+                          backgroundColor: Kingdom.parchment,
+                          foregroundColor: Kingdom.nightDeep,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
-                        child: const Text('OK', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        child: Text(t.dailyReward_okButton, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],

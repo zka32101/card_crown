@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =============== ユーザー配下（個人データ） ===============
+    match /users/{userId} {
+      // 本人のみ読み書き可
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // ウォレット（コイン・ジェム残高）
+      match /wallet/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // 今日のきもちカード
+      match /daily_emotions/{cardId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // きもちカード統計（連続記録・属性別集計）
+      match /daily_emotion_stats/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // デイリーミッション
+      match /missions/{missionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // PvPレーティング（pvpBattle Cloud Functionのみが更新。クライアントは本人の分を読み取りのみ）
+      match /rating/{document=**} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+    }
+  }
+}

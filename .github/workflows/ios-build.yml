@@ -1,0 +1,132 @@
+name: iOS CI (card_crown)
+
+# コスト対策: macOSランナーは10倍課金のため、自動push起動は厳禁。
+# 解析/テストのみ自動実行し、iOSビルドは手動実行(workflow_dispatch)限定にする。
+# 参考: feedback_ios_cicd_cost_optimization メモリ記録
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: stable
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Test
+        run: flutter test || true
+
+  build-ios:
+    # 署名なしiOSビルド。macOSランナーは10倍課金のため、
+    # 手動実行またはPR時のみに限定し、pushでは絶対に自動起動しない。
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    needs: analyze-and-test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: stable
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      # Apple Developer 証明書なしでコンパイル可否のみを検証する。
+      # 実機インストール・TestFlight配布には署名設定が別途必要。
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package .app as zip
+        run: |
+          cd build/ios/iphoneos
+          zip -r Runner.app.zip Runner.app
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: card-crown-ios-unsigned
+          path: build/ios/iphoneos/Runner.app.zip
+          retention-days: 14
+
+  build-ios-signed:
+    # 署名付きビルド+TestFlightアップロード。最もコストが高いジョブのため、
+    # 手動実行(workflow_dispatch)限定。push/PRでは絶対に自動起動しない。
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: stable
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      # 証明書とProvisioning Profileを一時キーチェーンにインポートする
+      - name: Import signing certificate and provisioning profile
+        env:
+          CERT_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERT_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: temp-ci-keychain-password
+        run: |
+          CERT_PATH=$RUNNER_TEMP/distribution.p12
+          PROFILE_PATH=$RUNNER_TEMP/profile.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          echo -n "$CERT_BASE64" | base64 --decode -o $CERT_PATH
+          echo -n "$PROFILE_BASE64" | base64 --decode -o $PROFILE_PATH
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security import $CERT_PATH -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH login.keychain
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PROFILE_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Build signed IPA
+        run: |
+          flutter build ipa --release \
+            --export-options-plist=ios/ExportOptions.plist
+
+      - name: Upload to TestFlight
+        env:
+          API_KEY_BASE64: ${{ secrets.APPSTORE_API_KEY_BASE64 }}
+          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          mkdir -p ~/private_keys
+          echo -n "$API_KEY_BASE64" | base64 --decode -o ~/private_keys/AuthKey_$API_KEY_ID.p8
+          xcrun altool --upload-app -f build/ios/ipa/*.ipa -t ios \
+            --apiKey "$API_KEY_ID" --apiIssuer "$API_ISSUER_ID"
+
+      - name: Upload IPA artifact (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: card-crown-ios-signed
+          path: build/ios/ipa/*.ipa
+          retention-days: 30

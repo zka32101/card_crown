@@ -59,11 +59,12 @@ class FunctionsService {
     return Map<String, dynamic>.from(result.data as Map);
   }
 
-  // PvPバトル実行（サーバーサイド）
+  // PvPバトル実行（サーバーサイド・改ざん防止のため結果はサーバーで再計算される）
   static Future<Map<String, dynamic>> pvpBattle({
     required List<Map<String, dynamic>> attackerDeck,
     required List<Map<String, dynamic>> defenderDeckSnapshot,
     required String defenderUid,
+    String? migratedAttribute,
   }) async {
     final callable = _functions.httpsCallable(
       'pvpBattle',
@@ -73,6 +74,7 @@ class FunctionsService {
       'attackerDeck': attackerDeck,
       'defenderDeckSnapshot': defenderDeckSnapshot,
       'defenderUid': defenderUid,
+      'migratedAttribute': ?migratedAttribute,
     });
     return Map<String, dynamic>.from(result.data as Map);
   }

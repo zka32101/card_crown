@@ -7,6 +7,8 @@ import '../models/card_design_words.dart';
 import '../services/functions_service.dart';
 import '../services/purchase_service.dart';
 import '../widgets/daily_quests_widget.dart';
+import '../theme/kingdom_theme.dart';
+import '../l10n/app_localizations.dart';
 
 class CardCreationScreenV2 extends ConsumerStatefulWidget {
   const CardCreationScreenV2({super.key});
@@ -27,67 +29,90 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
   List<String> _nameCandidates = [];
   String? _selectedName;
   bool _isGeneratingName = false;
+  final _coCreatorController = TextEditingController();
 
   int get _budget => switch (_cost ?? 1) { 1 => 20, 2 => 25, 3 => 30, 4 => 35, _ => 40 };
   int get _remaining => _budget - _attack - _defense - _speed;
   bool get _isParamValid => _remaining == 0 && _attack > 0 && _defense > 0 && _speed > 0;
 
   @override
+  void dispose() {
+    _coCreatorController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     return Scaffold(
+      backgroundColor: Kingdom.night,
       appBar: AppBar(
-        title: Text('カード作成 - ステップ ${_step + 1}/6'),
+        title: Text(t.cardCreation_appBarTitle(_step + 1), style: Kingdom.title(size: 16)),
         elevation: 0,
+        backgroundColor: Kingdom.nightDeep,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(8),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: Kingdom.spaceLg, vertical: Kingdom.spaceXs),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: (_step + 1) / 6,
-                backgroundColor: Colors.grey[200],
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.amber[700]!),
+                backgroundColor: Kingdom.night,
+                valueColor: const AlwaysStoppedAnimation<Color>(Kingdom.gilt),
                 minHeight: 4,
               ),
             ),
           ),
         ),
       ),
-      body: SafeArea(
+      body: Stack(
+        children: [
+          const Positioned.fill(child: EmotionMoteField(count: 8)),
+          SafeArea(
         child: Column(
           children: [
             // ステップ表示
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(Kingdom.spaceLg),
               child: Row(
                 children: List.generate(6, (i) {
                   final isActive = i == _step;
                   final isDone = i < _step;
+                  final stepColor = isDone ? Kingdom.joyGold : isActive ? Kingdom.gilt : Kingdom.bronze.withValues(alpha: 0.4);
                   return Expanded(
                     child: Column(
                       children: [
                         Container(
-                          width: 40,
-                          height: 40,
+                          width: 36,
+                          height: 36,
                           decoration: BoxDecoration(
-                            color: isDone ? Colors.green : isActive ? Colors.amber[700] : Colors.grey[300],
+                            color: Kingdom.nightDeep,
                             shape: BoxShape.circle,
+                            border: Border.all(color: stepColor, width: 1.6),
                           ),
                           child: Center(
                             child: Text(
                               isDone ? '✓' : '${i + 1}',
                               style: TextStyle(
-                                color: isDone || isActive ? Colors.white : Colors.grey[600],
+                                fontFamily: Kingdom.displayFont,
+                                color: isDone || isActive ? stepColor : Kingdom.parchment.withValues(alpha: 0.4),
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: Kingdom.spaceXs),
                         Text(
-                          ['デザイン', '属性', 'コスト', 'パラメータ', 'トーン', '命名'][i],
-                          style: TextStyle(fontSize: 11, color: isActive ? Colors.amber[700] : Colors.grey[600]),
+                          [
+                            t.cardCreation_stepDesign,
+                            t.cardCreation_stepAttribute,
+                            t.cardCreation_stepCost,
+                            t.cardCreation_stepParameters,
+                            t.cardCreation_stepTone,
+                            t.cardCreation_stepNaming,
+                          ][i],
+                          style: TextStyle(fontSize: 10, color: isActive ? Kingdom.gilt : Kingdom.parchment.withValues(alpha: 0.4)),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -100,14 +125,14 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
             // コンテンツ
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(Kingdom.spaceLg),
                 child: switch (_step) {
-                  0 => _buildDesignStep(),
-                  1 => _buildAttributeStep(),
-                  2 => _buildCostStep(),
-                  3 => _buildParameterStep(),
-                  4 => _buildToneStep(),
-                  5 => _buildNamingStep(),
+                  0 => _buildDesignStep(t),
+                  1 => _buildAttributeStep(t),
+                  2 => _buildCostStep(t),
+                  3 => _buildParameterStep(t),
+                  4 => _buildToneStep(t),
+                  5 => _buildNamingStep(t),
                   _ => const SizedBox.shrink(),
                 },
               ),
@@ -115,73 +140,78 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
 
             // ボタン
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(Kingdom.spaceLg),
               child: Row(
                 children: [
                   if (_step > 0)
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => setState(() => _step--),
-                        child: const Text('← 戻る'),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Kingdom.parchment.withValues(alpha: 0.4)),
+                          foregroundColor: Kingdom.parchment,
+                        ),
+                        child: Text(t.cardCreation_back),
                       ),
                     ),
-                  if (_step > 0) const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildNextButton(),
-                  ),
+                  if (_step > 0) const SizedBox(width: Kingdom.spaceMd),
+                  Expanded(child: _buildNextButton(t)),
                 ],
               ),
             ),
           ],
         ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildDesignStep() {
+  Widget _buildStepTitle(String title, String sub) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('カードデザイン（3つ選択）', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
-        const Text('この 3 つの言葉がカードのデザインになります', style: TextStyle(color: Colors.grey, fontSize: 12)),
-        const SizedBox(height: 20),
-        // 選択済み言葉表示
+        Text(title, style: Kingdom.title(size: 17)),
+        const SizedBox(height: Kingdom.spaceXs),
+        Text(sub, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.6), fontSize: 12)),
+        const SizedBox(height: Kingdom.spaceXl),
+      ],
+    );
+  }
+
+  Widget _buildDesignStep(AppLocalizations t) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStepTitle(t.cardCreation_designStepTitle, t.cardCreation_designStepSub),
         if (_selectedDesignWords.isNotEmpty) ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.amber[50],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.amber[300]!),
-            ),
+          OrnateFrame(
+            accent: Kingdom.gilt,
+            padding: const EdgeInsets.all(Kingdom.spaceMd),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '✓ 選択済み（${_selectedDesignWords.length}/3）',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-                const SizedBox(height: 8),
+                Text(t.cardCreation_designSelectedCount(_selectedDesignWords.length),
+                    style: Kingdom.label(size: 12, color: Kingdom.gilt)),
+                const SizedBox(height: Kingdom.spaceSm),
                 Wrap(
-                  spacing: 8,
+                  spacing: Kingdom.spaceSm,
+                  runSpacing: 6,
                   children: _selectedDesignWords.map((word) {
                     return Chip(
                       label: Text(word),
-                      onDeleted: () {
-                        setState(() => _selectedDesignWords.remove(word));
-                      },
-                      backgroundColor: Colors.amber[700],
-                      labelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      onDeleted: () => setState(() => _selectedDesignWords.remove(word)),
+                      backgroundColor: Kingdom.gilt,
+                      labelStyle: TextStyle(color: Kingdom.night, fontWeight: FontWeight.bold),
+                      deleteIconColor: Kingdom.night,
                     );
                   }).toList(),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: Kingdom.spaceLg),
         ],
-        // 言葉グリッド
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -207,27 +237,22 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
               },
               child: Container(
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.amber[700] : (canSelect ? Colors.white : Colors.grey[100]),
+                  color: isSelected ? Kingdom.gilt : Kingdom.nightDeep,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isSelected ? Colors.amber[700]! : Colors.grey[300]!,
+                    color: isSelected ? Kingdom.gilt : Kingdom.parchment.withValues(alpha: 0.15),
                     width: isSelected ? 2 : 1,
                   ),
-                  boxShadow: isSelected ? [
-                    BoxShadow(
-                      color: Colors.amber.withValues(alpha: 0.3),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ] : null,
                 ),
                 child: Center(
                   child: Text(
                     word,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: Kingdom.textCaption,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected ? Colors.white : (!canSelect ? Colors.grey[400] : Colors.black87),
+                      color: isSelected
+                          ? Kingdom.night
+                          : (!canSelect ? Kingdom.parchment.withValues(alpha: 0.25) : Kingdom.parchment.withValues(alpha: 0.85)),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -240,42 +265,39 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
     );
   }
 
-  Widget _buildAttributeStep() {
+  Widget _buildAttributeStep(AppLocalizations t) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('どの属性でカードを作成しますか？', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
-        const Text('属性によって 3 すくみの相性が変わります', style: TextStyle(color: Colors.grey, fontSize: 12)),
-        const SizedBox(height: 20),
+        _buildStepTitle(t.cardCreation_attributeStepTitle, t.cardCreation_attributeStepSub),
         ...[
-          ('joy', '☀️ 喜（Joy）', '怒に有利・哀に不利', const Color(0xFFFFD700), '太陽が輝く黄金の国'),
-          ('anger', '🔥 怒（Anger）', '哀に有利・喜に不利', const Color(0xFFE74C3C), '火山と岩の大地'),
-          ('sadness', '🌙 哀（Sadness）', '喜に有利・怒に不利', const Color(0xFF3498DB), '深い夜の森と静寂の湖'),
+          ('joy', '☀️ ${t.cardCreation_attrJoyLabel}', t.cardCreation_attrJoyAdvantage, Kingdom.joyGold, t.cardCreation_attrJoyRealm),
+          ('anger', '🔥 ${t.cardCreation_attrAngerLabel}', t.cardCreation_attrAngerAdvantage, Kingdom.angerCrimson, t.cardCreation_attrAngerRealm),
+          ('sadness', '🌙 ${t.cardCreation_attrSadnessLabel}', t.cardCreation_attrSadnessAdvantage, Kingdom.sadnessIndigo, t.cardCreation_attrSadnessRealm),
         ].map((item) {
           final isSelected = _attribute == item.$1;
           return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.only(bottom: Kingdom.spaceMd),
             child: GestureDetector(
               onTap: () => setState(() => _attribute = item.$1),
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: isSelected ? item.$4.withValues(alpha: 0.15) : Colors.white,
+                  color: isSelected ? item.$4.withValues(alpha: 0.15) : Kingdom.nightDeep,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isSelected ? item.$4 : Colors.grey[300]!, width: isSelected ? 2 : 1),
+                  border: Border.all(color: isSelected ? item.$4 : Kingdom.parchment.withValues(alpha: 0.15), width: isSelected ? 2 : 1),
                 ),
                 child: Row(
                   children: [
                     Text(item.$2.split(' ')[0], style: const TextStyle(fontSize: 32)),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: Kingdom.spaceMd),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(item.$2.split(' ')[1], style: TextStyle(fontWeight: FontWeight.bold, color: item.$4)),
-                          Text(item.$3, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                          Text(item.$5, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                          Text(item.$2.split(' ')[1], style: Kingdom.label(size: 14, color: item.$4)),
+                          Text(item.$3, style: TextStyle(fontSize: 12, color: Kingdom.parchment.withValues(alpha: 0.6))),
+                          Text(item.$5, style: TextStyle(fontSize: Kingdom.textCaption, color: Kingdom.parchment.withValues(alpha: 0.4))),
                         ],
                       ),
                     ),
@@ -290,20 +312,17 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
     );
   }
 
-  Widget _buildCostStep() {
+  Widget _buildCostStep(AppLocalizations t) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('カードのコストを選択', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
-        const Text('コストが高いほど強力なパラメータを配分できます', style: TextStyle(color: Colors.grey, fontSize: 12)),
-        const SizedBox(height: 20),
+        _buildStepTitle(t.cardCreation_costStepTitle, t.cardCreation_costStepSub),
         ...List.generate(5, (i) {
           final c = i + 1;
           final budget = switch (c) { 1 => 20, 2 => 25, 3 => 30, 4 => 35, _ => 40 };
           final isSelected = _cost == c;
           return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.only(bottom: Kingdom.spaceMd),
             child: GestureDetector(
               onTap: () {
                 setState(() {
@@ -316,24 +335,24 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.amber[50] : Colors.white,
+                  color: isSelected ? Kingdom.gilt.withValues(alpha: 0.12) : Kingdom.nightDeep,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isSelected ? Colors.amber[700]! : Colors.grey[300]!, width: isSelected ? 2 : 1),
+                  border: Border.all(color: isSelected ? Kingdom.gilt : Kingdom.parchment.withValues(alpha: 0.15), width: isSelected ? 2 : 1),
                 ),
                 child: Row(
                   children: [
-                    Text(List.generate(c, (_) => '★').join(), style: TextStyle(fontSize: 18, color: Colors.amber[600])),
-                    const SizedBox(width: 12),
+                    Text(List.generate(c, (_) => '★').join(), style: const TextStyle(fontSize: 18, color: Kingdom.gilt)),
+                    const SizedBox(width: Kingdom.spaceMd),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('コスト $c', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          Text('パラメータ予算: $budget pt', style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                          Text(t.cardCreation_costLabel(c), style: Kingdom.label(size: Kingdom.textBody, color: Kingdom.parchment)),
+                          Text(t.cardCreation_costBudget(budget), style: TextStyle(fontSize: 12, color: Kingdom.parchment.withValues(alpha: 0.5))),
                         ],
                       ),
                     ),
-                    if (isSelected) Icon(Icons.check_circle, color: Colors.amber[700]),
+                    if (isSelected) const Icon(Icons.check_circle, color: Kingdom.gilt),
                   ],
                 ),
               ),
@@ -344,36 +363,36 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
     );
   }
 
-  Widget _buildParameterStep() {
+  Widget _buildParameterStep(AppLocalizations t) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('パラメータを配分', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
+        Text(t.card_selectParameters, style: Kingdom.title(size: 17)),
+        const SizedBox(height: Kingdom.spaceXs),
         Text(
-          '予算: $_budget pt　残り: $_remaining pt',
+          t.cardCreation_budgetRemaining(_budget, _remaining),
           style: TextStyle(
-            color: _remaining < 0 ? Colors.red : _remaining == 0 ? Colors.green : Colors.grey,
+            color: _remaining < 0 ? Kingdom.angerCrimson : _remaining == 0 ? Kingdom.joyGold : Kingdom.parchment.withValues(alpha: 0.6),
             fontWeight: FontWeight.bold,
-            fontSize: 13,
+            fontSize: Kingdom.textBody,
           ),
         ),
-        const SizedBox(height: 20),
-        _buildParamSlider('攻撃力', _attack, const Color(0xFFFF6347), (v) {
+        const SizedBox(height: Kingdom.spaceXl),
+        _buildParamSlider(t.card_attack, _attack, Kingdom.angerCrimson, (v) {
           if (_defense + _speed + v <= _budget) setState(() => _attack = v);
         }),
-        const SizedBox(height: 16),
-        _buildParamSlider('防御力', _defense, const Color(0xFF4169E1), (v) {
+        const SizedBox(height: Kingdom.spaceLg),
+        _buildParamSlider(t.card_defense, _defense, Kingdom.sadnessIndigo, (v) {
           if (_attack + _speed + v <= _budget) setState(() => _defense = v);
         }),
-        const SizedBox(height: 16),
-        _buildParamSlider('速度', _speed, const Color(0xFF9370DB), (v) {
+        const SizedBox(height: Kingdom.spaceLg),
+        _buildParamSlider(t.card_speed, _speed, Kingdom.joyGold, (v) {
           if (_attack + _defense + v <= _budget) setState(() => _speed = v);
         }),
-        const SizedBox(height: 24),
+        const SizedBox(height: Kingdom.spaceXxl),
         if (_attack > 0 || _defense > 0 || _speed > 0) ...[
-          const Text('プレビュー', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
+          Text(t.cardCreation_preview, style: Kingdom.label(size: Kingdom.textBody, color: Kingdom.gilt)),
+          const SizedBox(height: Kingdom.spaceMd),
           Center(
             child: SizedBox(
               width: 160,
@@ -385,7 +404,7 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
                   attackPower: _attack,
                   defensePower: _defense,
                   speed: _speed,
-                  nameJp: '（プレビュー）',
+                  nameJp: t.cardCreation_previewCardName,
                 ),
               ),
             ),
@@ -403,54 +422,56 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13)),
+            Text(label, style: Kingdom.label(size: Kingdom.textBody, color: color)),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
               decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(6)),
-              child: Text('$value', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+              child: Text('$value', style: const TextStyle(color: Kingdom.parchment, fontWeight: FontWeight.bold, fontSize: 12)),
             ),
           ],
         ),
         const SizedBox(height: 6),
-        Slider(
-          value: value.toDouble(),
-          min: 0,
-          max: max.toDouble(),
-          divisions: max,
-          activeColor: color,
-          onChanged: (v) => onChanged(v.round()),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            inactiveTrackColor: Kingdom.parchment.withValues(alpha: 0.12),
+          ),
+          child: Slider(
+            value: value.toDouble(),
+            min: 0,
+            max: max.toDouble(),
+            divisions: max,
+            activeColor: color,
+            onChanged: (v) => onChanged(v.round()),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildToneStep() {
+  Widget _buildToneStep(AppLocalizations t) {
     final tones = [
-      ('cute', 'かわいい系', '親しみやすく、愛らしい'),
-      ('cool', 'かっこいい系', '力強く、格好いい'),
-      ('dark', '深刻系', '深く、内省的'),
-      ('elegant', '優雅系', '上品で貴族的'),
-      ('normal', '普通系', 'ニュートラル'),
+      ('cute', t.card_cute, t.cardCreation_toneCuteDesc),
+      ('cool', t.card_cool, t.cardCreation_toneCoolDesc),
+      ('dark', t.card_dark, t.cardCreation_toneDarkDesc),
+      ('elegant', t.card_elegant, t.cardCreation_toneElegantDesc),
+      ('normal', t.cardCreation_toneNormalLabel, t.cardCreation_toneNormalDesc),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('カードのトーンを選択', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
-        const Text('AI がこのトーンでカード名を生成します', style: TextStyle(color: Colors.grey, fontSize: 12)),
-        const SizedBox(height: 20),
-        ...tones.map((t) {
-          final isSelected = _tone == t.$1;
+        _buildStepTitle(t.cardCreation_toneStepTitle, t.cardCreation_toneStepSub),
+        ...tones.map((tone) {
+          final isSelected = _tone == tone.$1;
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: GestureDetector(
-              onTap: () => setState(() => _tone = t.$1),
+              onTap: () => setState(() => _tone = tone.$1),
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.amber[50] : Colors.white,
+                  color: isSelected ? Kingdom.gilt.withValues(alpha: 0.12) : Kingdom.nightDeep,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isSelected ? Colors.amber[700]! : Colors.grey[300]!, width: isSelected ? 2 : 1),
+                  border: Border.all(color: isSelected ? Kingdom.gilt : Kingdom.parchment.withValues(alpha: 0.15), width: isSelected ? 2 : 1),
                 ),
                 child: Row(
                   children: [
@@ -458,12 +479,12 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(t.$2, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          Text(t.$3, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                          Text(tone.$2, style: Kingdom.label(size: Kingdom.textBody, color: Kingdom.parchment)),
+                          Text(tone.$3, style: TextStyle(fontSize: Kingdom.textCaption, color: Kingdom.parchment.withValues(alpha: 0.5))),
                         ],
                       ),
                     ),
-                    if (isSelected) Icon(Icons.check_circle, color: Colors.amber[700]),
+                    if (isSelected) const Icon(Icons.check_circle, color: Kingdom.gilt),
                   ],
                 ),
               ),
@@ -474,18 +495,15 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
     );
   }
 
-  Widget _buildNamingStep() {
+  Widget _buildNamingStep(AppLocalizations t) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('カード名を選択', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
-        const Text('AI が生成した 3 案からお選びください', style: TextStyle(color: Colors.grey, fontSize: 12)),
-        const SizedBox(height: 20),
+        _buildStepTitle(t.cardCreation_namingStepTitle, t.cardCreation_namingStepSub),
         if (_isGeneratingName) ...[
-          const Center(child: CircularProgressIndicator(color: Colors.amber)),
-          const SizedBox(height: 16),
-          const Center(child: Text('カード名を生成中...', style: TextStyle(color: Colors.grey))),
+          const Center(child: CircularProgressIndicator(color: Kingdom.gilt)),
+          const SizedBox(height: Kingdom.spaceLg),
+          Center(child: Text(t.cardCreation_generatingName, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.6)))),
         ] else ...[
           ..._nameCandidates.map((name) {
             final isSelected = _selectedName == name;
@@ -496,16 +514,21 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: isSelected ? Colors.amber[50] : Colors.white,
+                    color: isSelected ? Kingdom.gilt.withValues(alpha: 0.12) : Kingdom.nightDeep,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: isSelected ? Colors.amber[700]! : Colors.grey[300]!, width: isSelected ? 2 : 1),
+                    border: Border.all(color: isSelected ? Kingdom.gilt : Kingdom.parchment.withValues(alpha: 0.15), width: isSelected ? 2 : 1),
                   ),
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        child: Text(name,
+                            style: TextStyle(
+                                fontFamily: Kingdom.displayFont,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Kingdom.parchment)),
                       ),
-                      if (isSelected) Icon(Icons.check_circle, color: Colors.amber[700]),
+                      if (isSelected) const Icon(Icons.check_circle, color: Kingdom.gilt),
                     ],
                   ),
                 ),
@@ -517,27 +540,49 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
               setState(() => _isGeneratingName = true);
               _generateNames();
             },
-            icon: const Icon(Icons.refresh),
-            label: const Text('別案を生成'),
+            icon: Icon(Icons.refresh, color: Kingdom.gilt),
+            label: Text(t.cardCreation_regenerateNames, style: TextStyle(color: Kingdom.gilt)),
           ),
         ],
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.blue[50],
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue[200]!),
+        const SizedBox(height: Kingdom.spaceLg),
+        Text('🤝 ${t.cardCreation_coCreatorTitle}', style: Kingdom.label(size: Kingdom.textBody, color: const Color(0xFF7C9CDB))),
+        const SizedBox(height: Kingdom.spaceXs),
+        Text(t.cardCreation_coCreatorDesc,
+            style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.5), fontSize: Kingdom.textCaption)),
+        const SizedBox(height: Kingdom.spaceSm),
+        TextField(
+          controller: _coCreatorController,
+          maxLength: 12,
+          style: TextStyle(color: Kingdom.parchment),
+          decoration: InputDecoration(
+            hintText: t.cardCreation_coCreatorHint,
+            hintStyle: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.35)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Kingdom.parchment.withValues(alpha: 0.25)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Kingdom.parchment.withValues(alpha: 0.25)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Kingdom.gilt),
+            ),
+            isDense: true,
           ),
+        ),
+        const SizedBox(height: Kingdom.spaceMd),
+        OrnateFrame(
+          accent: Kingdom.sadnessIndigo,
+          padding: const EdgeInsets.all(12),
           child: Row(
-            children: const [
-              Icon(Icons.info_outline, color: Colors.blue, size: 18),
-              SizedBox(width: 8),
+            children: [
+              const Icon(Icons.info_outline, color: Color(0xFF7C9CDB), size: 18),
+              const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  '確定すると 🪙50 コイン が消費されます',
-                  style: TextStyle(fontSize: 12, color: Colors.blue),
-                ),
+                child: Text(t.cardCreation_confirmCoinNotice,
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF7C9CDB))),
               ),
             ],
           ),
@@ -546,41 +591,41 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
     );
   }
 
-  Widget _buildNextButton() {
+  Widget _buildNextButton(AppLocalizations t) {
     switch (_step) {
       case 0:
-        return ElevatedButton(
+        return RoyalButton(
+          label: t.cardCreation_next,
           onPressed: _selectedDesignWords.length == 3 ? () => setState(() => _step = 1) : null,
-          child: const Text('次へ →'),
         );
       case 1:
-        return ElevatedButton(
+        return RoyalButton(
+          label: t.cardCreation_next,
           onPressed: _attribute != null ? () => setState(() => _step = 2) : null,
-          child: const Text('次へ →'),
         );
       case 2:
-        return ElevatedButton(
+        return RoyalButton(
+          label: t.cardCreation_next,
           onPressed: _cost != null ? () => setState(() => _step = 3) : null,
-          child: const Text('次へ →'),
         );
       case 3:
-        return ElevatedButton(
+        return RoyalButton(
+          label: t.cardCreation_next,
           onPressed: _isParamValid ? () => setState(() => _step = 4) : null,
-          child: const Text('次へ →'),
         );
       case 4:
-        return ElevatedButton(
+        return RoyalButton(
+          label: t.cardCreation_generateNameButton,
           onPressed: () {
             setState(() => _step = 5);
             _generateNames();
           },
-          child: const Text('名前を生成 →'),
         );
       case 5:
-        return ElevatedButton(
+        return RoyalButton(
+          label: t.cardCreation_createForCoins,
+          accent: Kingdom.angerCrimson,
           onPressed: _selectedName != null ? _confirmAndPay : null,
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.red[600], foregroundColor: Colors.white),
-          child: const Text('🪙50 で作成'),
         );
       default:
         return const SizedBox.shrink();
@@ -612,7 +657,16 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
       });
     } catch (e) {
       if (!mounted) return;
-      final fallback = ['光の${_tone == 'cute' ? '妖精' : 'アイコン'}', '${_attribute == 'joy' ? '太陽' : _attribute == 'anger' ? '炎' : '月'}の子', 'パワーカード'];
+      final t = AppLocalizations.of(context)!;
+      final fallback = [
+        _tone == 'cute' ? t.cardCreation_fallbackLightFairy : t.cardCreation_fallbackLightIcon,
+        _attribute == 'joy'
+            ? t.cardCreation_fallbackSunChild
+            : _attribute == 'anger'
+                ? t.cardCreation_fallbackFlameChild
+                : t.cardCreation_fallbackMoonChild,
+        t.cardCreation_fallbackPowerCard,
+      ];
       setState(() {
         _nameCandidates = fallback;
         _isGeneratingName = false;
@@ -621,29 +675,39 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
   }
 
   void _confirmAndPay() {
+    final t = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('カード作成の確認'),
+        backgroundColor: Kingdom.nightDeep,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Kingdom.gilt.withValues(alpha: 0.4)),
+        ),
+        title: Text(t.cardCreation_confirmTitle, style: Kingdom.title(size: 16)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('「$_selectedName」', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('🪙50 コインで作成しますか？'),
-            const SizedBox(height: 4),
-            const Text('（作成後はキャンセルできません）', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            Text(t.cardCreation_quotedName(_selectedName ?? ''),
+                style: TextStyle(fontFamily: Kingdom.displayFont, fontSize: 18, fontWeight: FontWeight.bold, color: Kingdom.parchment)),
+            const SizedBox(height: Kingdom.spaceSm),
+            Text(t.cardCreation_confirmBody, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.8))),
+            const SizedBox(height: Kingdom.spaceXs),
+            Text(t.cardCreation_confirmNote, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.5), fontSize: 12)),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(t.cardCreation_cancel, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.7))),
+          ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
               _processPurchase();
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red[600], foregroundColor: Colors.white),
-            child: const Text('🪙50 で作成'),
+            style: ElevatedButton.styleFrom(backgroundColor: Kingdom.angerCrimson, foregroundColor: Kingdom.parchment),
+            child: Text(t.cardCreation_createForCoins),
           ),
         ],
       ),
@@ -653,24 +717,26 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
   Future<void> _processPurchase() async {
     final result = await PurchaseService.purchaseCardCreation();
     if (!mounted) return;
+    final t = AppLocalizations.of(context)!;
 
     switch (result) {
       case PurchaseResult.success:
         _onCardCreated();
       case PurchaseResult.cancelled:
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('課金をキャンセルしました')),
+          SnackBar(content: Text(t.cardCreation_purchaseCancelled)),
         );
       case PurchaseResult.noProduct:
         _onCardCreated();
       case PurchaseResult.error:
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('課金処理でエラーが発生しました'), backgroundColor: Colors.red),
+          SnackBar(content: Text(t.cardCreation_purchaseError), backgroundColor: Colors.red),
         );
     }
   }
 
   Future<void> _onCardCreated() async {
+    final t = AppLocalizations.of(context)!;
     // 画像生成ローディング表示
     if (mounted) {
       showDialog(
@@ -692,7 +758,7 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
         attackPower: _attack,
         defensePower: _defense,
         speed: _speed,
-        nameJp: _selectedName ?? 'カード',
+        nameJp: _selectedName ?? t.cardCreation_defaultCardName,
       );
       imageUrl = await FunctionsService.generateCardImage(
         attribute: _attribute ?? 'joy',
@@ -709,6 +775,7 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
     }
 
+    final coCreatorName = _coCreatorController.text.trim();
     final newCard = PlayCard(
       cardId: 'created_${DateTime.now().millisecondsSinceEpoch}',
       attribute: _attribute ?? 'joy',
@@ -716,8 +783,9 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
       attackPower: _attack,
       defensePower: _defense,
       speed: _speed,
-      nameJp: _selectedName ?? 'カード',
+      nameJp: _selectedName ?? t.cardCreation_defaultCardName,
       imageUrl: imageUrl,
+      coCreatorName: coCreatorName.isEmpty ? null : coCreatorName,
     );
 
     if (!mounted) return;
@@ -736,7 +804,7 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('✅ 「$_selectedName」をコレクションに追加！（🪙50 消費）'),
+        content: Text(t.cardCreation_cardAddedSnackbar(_selectedName ?? '')),
         backgroundColor: Colors.green,
         duration: const Duration(seconds: 3),
       ),
@@ -756,54 +824,45 @@ class _ImageGenLoadingDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final emoji = switch (attribute) {
       'joy' => '☀️',
       'anger' => '🔥',
       _ => '🌙',
     };
-    final color = switch (attribute) {
-      'joy' => const Color(0xFFFFB300),
-      'anger' => const Color(0xFFE53935),
-      _ => const Color(0xFF1E88E5),
-    };
+    final color = Kingdom.attributeColor(attribute);
     final rarityLabel = switch (rarity) {
-      'ur' => '✨ UR — 伝説のカード',
-      'sr' => '💎 SR — 壮大な情景',
-      'r' => '🔵 R — 情景を描く',
-      _ => '⚪ N — シンプルな背景',
+      'ur' => t.cardCreation_rarityUr,
+      'sr' => t.cardCreation_raritySr,
+      'r' => t.cardCreation_rarityR,
+      _ => t.cardCreation_rarityN,
     };
     return Dialog(
-      backgroundColor: const Color(0xFF1C1530),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: Kingdom.nightDeep,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: color.withValues(alpha: 0.5)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(emoji, style: const TextStyle(fontSize: 52)),
-            const SizedBox(height: 16),
-            Text(
-              'カード画像を生成中...',
-              style: TextStyle(
-                  color: color,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold),
-            ),
+            const SizedBox(height: Kingdom.spaceLg),
+            Text(t.cardCreation_generatingImage, style: Kingdom.label(size: Kingdom.textSubheading, color: color)),
             const SizedBox(height: 6),
-            Text(
-              rarityLabel,
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-            const SizedBox(height: 20),
+            Text(rarityLabel, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.5), fontSize: 12)),
+            const SizedBox(height: Kingdom.spaceXl),
             LinearProgressIndicator(
-              backgroundColor: Colors.white12,
+              backgroundColor: Kingdom.night,
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'AIがカードアートを描いています\n少しお待ちください（約20秒）',
+            const SizedBox(height: Kingdom.spaceMd),
+            Text(
+              t.cardCreation_generatingImageSub,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white38, fontSize: 11),
+              style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.35), fontSize: Kingdom.textCaption),
             ),
           ],
         ),

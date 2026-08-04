@@ -9,6 +9,8 @@ class SeedCard {
   final String nameEn;
   final String descriptionJp;
   final String descriptionEn;
+  // AI生成アート（アセットパス or URL）。未設定なら空文字でプレースホルダー表示になる。
+  final String imageUrl;
 
   SeedCard({
     required this.cardId,
@@ -21,6 +23,7 @@ class SeedCard {
     required this.nameEn,
     required this.descriptionJp,
     required this.descriptionEn,
+    this.imageUrl = '',
   });
 
   String getCardType() {
@@ -50,5 +53,6 @@ class SeedCard {
     'nameEn': nameEn,
     'descriptionJp': descriptionJp,
     'descriptionEn': descriptionEn,
+    'imageUrl': imageUrl,
   };
 }

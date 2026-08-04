@@ -14,3 +14,6 @@ firebase_options.dart
 .gradle/
 .m2/
 xcuserdata/
+firebase-debug.log
+functions/lib/
+functions/node_modules/

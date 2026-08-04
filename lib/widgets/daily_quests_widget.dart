@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../providers/game_state_provider.dart';
+import '../theme/kingdom_theme.dart';
+import '../l10n/app_localizations.dart';
 
 enum QuestType { battle, create, win }
 
@@ -47,38 +49,39 @@ class DailyQuestsWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final quests = ref.watch(dailyQuestsProvider);
     final allDone = quests.every((q) => q.claimed);
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.deepPurple[900]!, Colors.indigo[900]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.deepPurple.withValues(alpha: 0.3), blurRadius: 10)],
+    return OrnateFrame(
+      accent: Kingdom.sadnessIndigo,
+      gradient: const LinearGradient(
+        colors: [Kingdom.sadnessIndigoDeep, Kingdom.nightDeep],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Text('📋 デイリークエスト', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+              Text(t.dailyQuests_title, style: Kingdom.label(size: 14, color: const Color(0xFF7C9CDB))),
               const Spacer(),
               if (allDone)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.greenAccent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.greenAccent)),
-                  child: const Text('全完了!', style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                  decoration: BoxDecoration(
+                      color: Kingdom.joyGold.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Kingdom.joyGold)),
+                  child: Text(t.dailyQuests_allDone, style: const TextStyle(color: Kingdom.joyGold, fontSize: 10, fontWeight: FontWeight.bold)),
                 )
               else
-                Text('${quests.where((q) => q.completed).length}/3', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                Text(t.dailyQuests_progressCount(quests.where((q) => q.completed).length, quests.length),
+                    style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.5), fontSize: 12)),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: Kingdom.spaceMd),
           ...quests.asMap().entries.map((e) => _QuestRow(
                 quest: e.value,
                 index: e.key,
@@ -96,11 +99,17 @@ class _QuestRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final isDone = quest.completed;
     final isClaimed = quest.claimed;
+    final questTitle = switch (quest.type) {
+      QuestType.battle => t.dailyQuests_battleTitle,
+      QuestType.create => t.dailyQuests_createTitle,
+      QuestType.win => t.dailyQuests_winTitle,
+    };
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: Kingdom.spaceSm),
       child: Row(
         children: [
           // アイコン
@@ -109,12 +118,13 @@ class _QuestRow extends ConsumerWidget {
             height: 36,
             decoration: BoxDecoration(
               color: isClaimed
-                  ? Colors.green.withValues(alpha: 0.2)
+                  ? Kingdom.joyGold.withValues(alpha: 0.2)
                   : isDone
-                      ? Colors.amber.withValues(alpha: 0.2)
-                      : Colors.white.withValues(alpha: 0.08),
+                      ? Kingdom.gilt.withValues(alpha: 0.2)
+                      : Kingdom.parchment.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: isClaimed ? Colors.greenAccent : isDone ? Colors.amber : Colors.white24),
+              border: Border.all(
+                  color: isClaimed ? Kingdom.joyGold : isDone ? Kingdom.gilt : Kingdom.parchment.withValues(alpha: 0.2)),
             ),
             child: Center(child: Text(isClaimed ? '✅' : quest.icon, style: const TextStyle(fontSize: 18))),
           ),
@@ -124,14 +134,19 @@ class _QuestRow extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(quest.title, style: TextStyle(color: isClaimed ? Colors.white38 : Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(questTitle,
+                    style: TextStyle(
+                        color: isClaimed ? Kingdom.parchment.withValues(alpha: 0.35) : Kingdom.parchment,
+                        fontSize: Kingdom.textBody,
+                        fontWeight: FontWeight.w600)),
                 const SizedBox(height: 3),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: (quest.progress / quest.target).clamp(0.0, 1.0),
-                    backgroundColor: Colors.white12,
-                    valueColor: AlwaysStoppedAnimation<Color>(isClaimed ? Colors.green : isDone ? Colors.amber : Colors.deepPurpleAccent),
+                    backgroundColor: Kingdom.parchment.withValues(alpha: 0.12),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                        isClaimed ? Kingdom.joyGold : isDone ? Kingdom.gilt : const Color(0xFF7C9CDB)),
                     minHeight: 5,
                   ),
                 ),
@@ -141,7 +156,7 @@ class _QuestRow extends ConsumerWidget {
           const SizedBox(width: 10),
           // 報酬 / クレームボタン
           if (isClaimed)
-            Text('受取済', style: const TextStyle(color: Colors.white24, fontSize: 10))
+            Text(t.dailyQuests_claimed, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.25), fontSize: 10))
           else if (isDone)
             GestureDetector(
               onTap: () {
@@ -153,21 +168,26 @@ class _QuestRow extends ConsumerWidget {
                 final w = ref.read(walletProvider);
                 ref.read(walletProvider.notifier).state = w.copyWith(coinBalance: w.coinBalance + quest.reward);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('🪙${quest.reward} 獲得!'), duration: const Duration(seconds: 2)),
+                  SnackBar(content: Text(t.dailyQuests_rewardEarned(quest.reward)), duration: const Duration(seconds: 2)),
                 );
               },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFFFFAA00), Color(0xFFFFD700)]),
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [BoxShadow(color: Colors.amber.withValues(alpha: 0.4), blurRadius: 8)],
+              child: SizedBox(
+                height: Kingdom.minTapTarget,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [Kingdom.gilt, Kingdom.joyGold]),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [BoxShadow(color: Kingdom.gilt.withValues(alpha: 0.4), blurRadius: 8)],
+                    ),
+                    child: Text('🪙${quest.reward}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Kingdom.night)),
+                  ),
                 ),
-                child: Text('🪙${quest.reward}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black)),
               ),
             )
           else
-            Text('${quest.progress}/${quest.target}', style: const TextStyle(color: Colors.white38, fontSize: 11)),
+            Text('${quest.progress}/${quest.target}', style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.35), fontSize: 11)),
         ],
       ),
     );

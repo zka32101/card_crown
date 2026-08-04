@@ -13,6 +13,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Child of Sun',
     descriptionJp: '太陽のように明るい心',
     descriptionEn: 'Bright as the sun',
+    imageUrl: 'assets/card_art/joy_c1_001.png',
   ),
   SeedCard(
     cardId: 'joy_c1_002',
@@ -25,6 +26,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Shield of Light',
     descriptionJp: '皆を守る光',
     descriptionEn: 'Light that protects all',
+    imageUrl: 'assets/card_art/joy_c1_002.png',
   ),
   SeedCard(
     cardId: 'joy_c1_003',
@@ -37,6 +39,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Gleaming Butterfly',
     descriptionJp: '素早く優雅に舞う',
     descriptionEn: 'Swift and graceful',
+    imageUrl: 'assets/card_art/joy_c1_003.png',
   ),
   SeedCard(
     cardId: 'joy_c1_004',
@@ -49,6 +52,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Light of Hope',
     descriptionJp: 'いつも私たちを導く',
     descriptionEn: 'Always guiding us',
+    imageUrl: 'assets/card_art/joy_c1_004.png',
   ),
   SeedCard(
     cardId: 'joy_c1_005',
@@ -61,6 +65,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Morning Sun',
     descriptionJp: '新しい始まりの象徴',
     descriptionEn: 'Symbol of new beginnings',
+    imageUrl: 'assets/card_art/joy_c1_005.png',
   ),
 
   // 喜（Joy）C2（25pt）: 4枚
@@ -75,6 +80,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Knight of Light',
     descriptionJp: '光を剣に変える勇者',
     descriptionEn: 'Warrior of light',
+    imageUrl: 'assets/card_art/joy_c2_001.png',
   ),
   SeedCard(
     cardId: 'joy_c2_002',
@@ -87,6 +93,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Beloved Earth',
     descriptionJp: '全てを受け入れる大地',
     descriptionEn: 'Earth that embraces all',
+    imageUrl: 'assets/card_art/joy_c2_002.png',
   ),
   SeedCard(
     cardId: 'joy_c2_003',
@@ -99,6 +106,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Circle of Joy',
     descriptionJp: 'バランスの取れた喜び',
     descriptionEn: 'Balanced happiness',
+    imageUrl: 'assets/card_art/joy_c2_003.png',
   ),
   SeedCard(
     cardId: 'joy_c2_004',
@@ -111,6 +119,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Fairy of Smiles',
     descriptionJp: '楽しさを運ぶ小さな使者',
     descriptionEn: 'Brings fun wherever',
+    imageUrl: 'assets/card_art/joy_c2_004.png',
   ),
 
   // 喜（Joy）C3（30pt）: 3 + 1（端数）= 4枚
@@ -125,6 +134,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Lord of Hope',
     descriptionJp: '希望を象徴する王',
     descriptionEn: 'King of hope',
+    imageUrl: 'assets/card_art/joy_c3_001.png',
   ),
   SeedCard(
     cardId: 'joy_c3_002',
@@ -137,6 +147,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Golden Shield',
     descriptionJp: '絶対の防御',
     descriptionEn: 'Impenetrable defense',
+    imageUrl: 'assets/card_art/joy_c3_002.png',
   ),
   SeedCard(
     cardId: 'joy_c3_003',
@@ -149,6 +160,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Knight of Radiance',
     descriptionJp: '光の速度で敵を討つ',
     descriptionEn: 'Swift as light',
+    imageUrl: 'assets/card_art/joy_c3_003.png',
   ),
   SeedCard(
     cardId: 'joy_c3_004',
@@ -161,6 +173,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Wheel of Life',
     descriptionJp: 'あらゆる調和をもたらす',
     descriptionEn: 'Brings harmony',
+    imageUrl: 'assets/card_art/joy_c3_004.png',
   ),
 
   // 喜（Joy）C4（35pt）: 2枚
@@ -175,6 +188,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Golden Emperor',
     descriptionJp: '絶大な力と輝き',
     descriptionEn: 'Power and radiance',
+    imageUrl: 'assets/card_art/joy_c4_001.png',
   ),
   SeedCard(
     cardId: 'joy_c4_002',
@@ -187,6 +201,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Eternal Light',
     descriptionJp: 'いつまでも消えない光',
     descriptionEn: 'Never-ending light',
+    imageUrl: 'assets/card_art/joy_c4_002.png',
   ),
 
   // 喜（Joy）C5（40pt）: 2枚
@@ -201,6 +216,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Sun God',
     descriptionJp: 'すべての光の源',
     descriptionEn: 'Source of all light',
+    imageUrl: 'assets/card_art/joy_c5_001.png',
   ),
   SeedCard(
     cardId: 'joy_c5_002',
@@ -213,6 +229,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Immortal Shield',
     descriptionJp: 'いかなる傷もつかない',
     descriptionEn: 'Never yields',
+    imageUrl: 'assets/card_art/joy_c5_002.png',
   ),
 
   // 怒（Anger）C1（20pt）: 5枚
@@ -227,6 +244,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Spirit of Fire',
     descriptionJp: '燃える怒りの象徴',
     descriptionEn: 'Symbol of burning rage',
+    imageUrl: 'assets/card_art/anger_c1_001.png',
   ),
   SeedCard(
     cardId: 'anger_c1_002',
@@ -239,6 +257,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Iron Wall',
     descriptionJp: '砕けぬ防御',
     descriptionEn: 'Unbreakable defense',
+    imageUrl: 'assets/card_art/anger_c1_002.png',
   ),
   SeedCard(
     cardId: 'anger_c1_003',
@@ -251,6 +270,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Hellfire Warrior',
     descriptionJp: '速く、熱く',
     descriptionEn: 'Fast and fierce',
+    imageUrl: 'assets/card_art/anger_c1_003.png',
   ),
   SeedCard(
     cardId: 'anger_c1_004',
@@ -263,6 +283,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Inferno Whirl',
     descriptionJp: 'バランスの取れた力',
     descriptionEn: 'Balanced fury',
+    imageUrl: 'assets/card_art/anger_c1_004.png',
   ),
   SeedCard(
     cardId: 'anger_c1_005',
@@ -275,6 +296,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Oni',
     descriptionJp: '古来の怒りの化身',
     descriptionEn: 'Ancient wrath embodied',
+    imageUrl: 'assets/card_art/anger_c1_005.png',
   ),
 
   // 怒（Anger）C2（25pt）: 4枚
@@ -289,6 +311,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'King of Anger',
     descriptionJp: '激しく力強い王',
     descriptionEn: 'Fierce and mighty',
+    imageUrl: 'assets/card_art/anger_c2_001.png',
   ),
   SeedCard(
     cardId: 'anger_c2_002',
@@ -301,6 +324,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Volcano',
     descriptionJp: '溶岩の流れを堤防で止める',
     descriptionEn: 'Holds back magma',
+    imageUrl: 'assets/card_art/anger_c2_002.png',
   ),
   SeedCard(
     cardId: 'anger_c2_003',
@@ -313,6 +337,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Flames of Wrath',
     descriptionJp: 'バランスの取れた怒り',
     descriptionEn: 'Balanced rage',
+    imageUrl: 'assets/card_art/anger_c2_003.png',
   ),
   SeedCard(
     cardId: 'anger_c2_004',
@@ -325,6 +350,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Red Oni',
     descriptionJp: '素早く厳しい',
     descriptionEn: 'Swift and harsh',
+    imageUrl: 'assets/card_art/anger_c2_004.png',
   ),
 
   // 怒（Anger）C3（30pt）: 3 + 1（端数）= 4枚
@@ -339,6 +365,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Anger King',
     descriptionJp: '全ての怒りを集める',
     descriptionEn: 'Gathers all rage',
+    imageUrl: 'assets/card_art/anger_c3_001.png',
   ),
   SeedCard(
     cardId: 'anger_c3_002',
@@ -351,6 +378,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Bedrock',
     descriptionJp: '揺るがぬ大地',
     descriptionEn: 'Immovable earth',
+    imageUrl: 'assets/card_art/anger_c3_002.png',
   ),
   SeedCard(
     cardId: 'anger_c3_003',
@@ -363,6 +391,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Hellfire Soldier',
     descriptionJp: '地獄の炎を操る',
     descriptionEn: 'Commands hellfire',
+    imageUrl: 'assets/card_art/anger_c3_003.png',
   ),
   SeedCard(
     cardId: 'anger_c3_004',
@@ -375,6 +404,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Inferno Vortex',
     descriptionJp: 'あらゆる物を焼き尽くす',
     descriptionEn: 'Burns everything',
+    imageUrl: 'assets/card_art/anger_c3_004.png',
   ),
 
   // 怒（Anger）C4（35pt）: 2枚
@@ -389,6 +419,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Emperor of Fire',
     descriptionJp: '炎の全てを統べる',
     descriptionEn: 'Master of all flames',
+    imageUrl: 'assets/card_art/anger_c4_001.png',
   ),
   SeedCard(
     cardId: 'anger_c4_002',
@@ -401,6 +432,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Immobile Rock',
     descriptionJp: '何物も動かせない',
     descriptionEn: 'Cannot be moved',
+    imageUrl: 'assets/card_art/anger_c4_002.png',
   ),
 
   // 怒（Anger）C5（40pt）: 2枚
@@ -415,6 +447,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Fire God',
     descriptionJp: '全ての炎の源',
     descriptionEn: 'Source of all fire',
+    imageUrl: 'assets/card_art/anger_c5_001.png',
   ),
   SeedCard(
     cardId: 'anger_c5_002',
@@ -427,6 +460,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Eternal Stone',
     descriptionJp: 'いつまでも屹立する',
     descriptionEn: 'Stands forever',
+    imageUrl: 'assets/card_art/anger_c5_002.png',
   ),
 
   // 哀（Sadness）C1（20pt）: 5枚
@@ -441,6 +475,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Spirit of Shadow',
     descriptionJp: '深き悲しみの化身',
     descriptionEn: 'Embodiment of sorrow',
+    imageUrl: 'assets/card_art/sadness_c1_001.png',
   ),
   SeedCard(
     cardId: 'sadness_c1_002',
@@ -453,6 +488,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Shield of Shadow',
     descriptionJp: '優しく包み込む',
     descriptionEn: 'Gently embraces',
+    imageUrl: 'assets/card_art/sadness_c1_002.png',
   ),
   SeedCard(
     cardId: 'sadness_c1_003',
@@ -465,6 +501,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Spirit of Dark Night',
     descriptionJp: '夜闇を優雅に舞う',
     descriptionEn: 'Dances through darkness',
+    imageUrl: 'assets/card_art/sadness_c1_003.png',
   ),
   SeedCard(
     cardId: 'sadness_c1_004',
@@ -477,6 +514,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Wind of Sadness',
     descriptionJp: 'そよ風のように優しい',
     descriptionEn: 'Soft as a breeze',
+    imageUrl: 'assets/card_art/sadness_c1_004.png',
   ),
   SeedCard(
     cardId: 'sadness_c1_005',
@@ -489,6 +527,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Shadow',
     descriptionJp: '光があれば必ず生まれる',
     descriptionEn: 'Born from light',
+    imageUrl: 'assets/card_art/sadness_c1_005.png',
   ),
 
   // 哀（Sadness）C2（25pt）: 4枚
@@ -503,6 +542,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'King of Sadness',
     descriptionJp: '深き悲しみを統べる',
     descriptionEn: 'Master of sorrow',
+    imageUrl: 'assets/card_art/sadness_c2_001.png',
   ),
   SeedCard(
     cardId: 'sadness_c2_002',
@@ -515,6 +555,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Shield of Abyss',
     descriptionJp: '深き闇に守られて',
     descriptionEn: 'Protected by abyss',
+    imageUrl: 'assets/card_art/sadness_c2_002.png',
   ),
   SeedCard(
     cardId: 'sadness_c2_003',
@@ -527,6 +568,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Pathos',
     descriptionJp: 'バランスの取れた悲しみ',
     descriptionEn: 'Balanced melancholy',
+    imageUrl: 'assets/card_art/sadness_c2_003.png',
   ),
   SeedCard(
     cardId: 'sadness_c2_004',
@@ -539,6 +581,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Spirit of Tears',
     descriptionJp: '素早く儚い',
     descriptionEn: 'Swift and fleeting',
+    imageUrl: 'assets/card_art/sadness_c2_004.png',
   ),
 
   // 哀（Sadness）C3（30pt）: 3枚
@@ -553,6 +596,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Lord of Sorrow',
     descriptionJp: '全ての悲しみを受け入れる',
     descriptionEn: 'Accepts all sorrow',
+    imageUrl: 'assets/card_art/sadness_c3_001.png',
   ),
   SeedCard(
     cardId: 'sadness_c3_002',
@@ -565,6 +609,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Spirit of Dark Abyss',
     descriptionJp: '深き夜を統べる',
     descriptionEn: 'Rules the deep night',
+    imageUrl: 'assets/card_art/sadness_c3_002.png',
   ),
   SeedCard(
     cardId: 'sadness_c3_003',
@@ -577,6 +622,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Witch of Tears',
     descriptionJp: '悲しみを魔法で癒す',
     descriptionEn: 'Heals with sorrow',
+    imageUrl: 'assets/card_art/sadness_c3_003.png',
   ),
 
   // 哀（Sadness）C4（35pt）: 2枚
@@ -591,6 +637,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Emperor of Abyss',
     descriptionJp: '深き淵の全てを統べる',
     descriptionEn: 'Master of the abyss',
+    imageUrl: 'assets/card_art/sadness_c4_001.png',
   ),
   SeedCard(
     cardId: 'sadness_c4_002',
@@ -603,6 +650,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Unchanging Night',
     descriptionJp: '夜は永遠に続く',
     descriptionEn: 'Night eternal',
+    imageUrl: 'assets/card_art/sadness_c4_002.png',
   ),
 
   // 哀（Sadness）C5（40pt）: 2枚
@@ -617,6 +665,7 @@ final seedCardsData = <SeedCard>[
     nameEn: 'God of Night',
     descriptionJp: '全ての暗黒の源',
     descriptionEn: 'Source of all darkness',
+    imageUrl: 'assets/card_art/sadness_c5_001.png',
   ),
   SeedCard(
     cardId: 'sadness_c5_002',
@@ -629,5 +678,6 @@ final seedCardsData = <SeedCard>[
     nameEn: 'Immortal Night',
     descriptionJp: 'いつまでも変わらない',
     descriptionEn: 'Forever unchanging',
+    imageUrl: 'assets/card_art/sadness_c5_002.png',
   ),
 ];

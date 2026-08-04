@@ -1,141 +1,160 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import '../l10n/app_localizations.dart';
+import '../providers/locale_provider.dart';
+import '../theme/kingdom_theme.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final locale = ref.watch(localeProvider);
+
     return Scaffold(
+      backgroundColor: Kingdom.night,
       appBar: AppBar(
-        title: const Text('設定'),
+        title: Text(t.settings_title, style: Kingdom.title(size: 17)),
+        backgroundColor: Kingdom.nightDeep,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Kingdom.gilt),
           onPressed: () => context.pop(),
         ),
       ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // My Bonus Section
-            Text(
-              'ボーナスポイント',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: ListTile(
-                title: const Text('ボーナスポイント詳細'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('ボーナス詳細機能は準備中です')),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
+      body: Stack(
+        children: [
+          const Positioned.fill(child: EmotionMoteField(count: 10)),
+          SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.all(Kingdom.spaceLg),
+              children: [
+                _SectionLabel(t.settings_bonusSection),
+                const SizedBox(height: Kingdom.spaceMd),
+                _SettingsCard(
+                  children: [
+                    _SettingsTile(
+                      title: t.settings_myBonus,
+                      onTap: () => _showComingSoon(context, t.settings_bonusComingSoon),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: Kingdom.spaceXxl),
 
-            // Purchase History
-            Text(
-              '購買履歴',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: ListTile(
-                title: const Text('購買履歴'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('購買履歴機能は準備中です')),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
+                _SectionLabel(t.settings_purchaseHistorySection),
+                const SizedBox(height: Kingdom.spaceMd),
+                _SettingsCard(
+                  children: [
+                    _SettingsTile(
+                      title: t.settings_purchaseHistory,
+                      onTap: () => _showComingSoon(context, t.settings_purchaseHistoryComingSoon),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: Kingdom.spaceXxl),
 
-            // Language Settings
-            Text(
-              '言語設定',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: Column(
-                children: [
-                  ListTile(
-                    title: const Text('日本語'),
-                    trailing: const Icon(Icons.check),
-                    selected: true,
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    title: const Text('English'),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('多言語機能は v1.1 で提供予定です')),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+                _SectionLabel(t.settings_languageSection),
+                const SizedBox(height: Kingdom.spaceMd),
+                _SettingsCard(
+                  children: [
+                    _SettingsTile(
+                      title: t.settings_japanese,
+                      trailingIcon: locale.languageCode == 'ja' ? Icons.check : null,
+                      selected: locale.languageCode == 'ja',
+                      onTap: () => ref.read(localeProvider.notifier).state = const Locale('ja'),
+                    ),
+                    _divider(),
+                    _SettingsTile(
+                      title: t.settings_english,
+                      trailingIcon: locale.languageCode == 'en' ? Icons.check : null,
+                      selected: locale.languageCode == 'en',
+                      onTap: () => ref.read(localeProvider.notifier).state = const Locale('en'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: Kingdom.spaceXxl),
 
-            // About & Links
-            Text(
-              '情報',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                _SectionLabel(t.settings_infoSection),
+                const SizedBox(height: Kingdom.spaceMd),
+                _SettingsCard(
+                  children: [
+                    _SettingsTile(
+                      title: t.settings_privacyPolicy,
+                      trailingIcon: Icons.open_in_new,
+                      onTap: () => _showComingSoon(context, t.settings_linkComingSoon),
+                    ),
+                    _divider(),
+                    _SettingsTile(
+                      title: t.settings_termsOfService,
+                      trailingIcon: Icons.open_in_new,
+                      onTap: () => _showComingSoon(context, t.settings_linkComingSoon),
+                    ),
+                    _divider(),
+                    _SettingsTile(
+                      title: t.settings_contactUs,
+                      trailingIcon: Icons.open_in_new,
+                      onTap: () => _showComingSoon(context, t.settings_contactComingSoon),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Card(
-              child: Column(
-                children: [
-                  ListTile(
-                    title: const Text('プライバシーポリシー'),
-                    trailing: const Icon(Icons.open_in_new),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('リンク機能は準備中です')),
-                      );
-                    },
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    title: const Text('利用規約'),
-                    trailing: const Icon(Icons.open_in_new),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('リンク機能は準備中です')),
-                      );
-                    },
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    title: const Text('お問い合わせ'),
-                    trailing: const Icon(Icons.open_in_new),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('お問い合わせ機能は準備中です')),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _divider() => Divider(height: 1, color: Kingdom.parchment.withValues(alpha: 0.1));
+
+  void _showComingSoon(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) => Text(text, style: Kingdom.title(size: Kingdom.textSubheading));
+}
+
+class _SettingsCard extends StatelessWidget {
+  final List<Widget> children;
+  const _SettingsCard({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Kingdom.nightDeep,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Kingdom.parchment.withValues(alpha: 0.12)),
+      ),
+      child: Column(children: children),
+    );
+  }
+}
+
+class _SettingsTile extends StatelessWidget {
+  final String title;
+  final IconData? trailingIcon;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  const _SettingsTile({required this.title, this.trailingIcon, this.selected = false, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      title: Text(title, style: TextStyle(color: Kingdom.parchment)),
+      trailing: Icon(
+        trailingIcon ?? Icons.chevron_right,
+        color: selected ? Kingdom.gilt : Kingdom.parchment.withValues(alpha: 0.4),
+      ),
+      onTap: onTap,
     );
   }
 }

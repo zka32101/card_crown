@@ -1,17 +1,62 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import fetch from "node-fetch";
-
-const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
+import {generateImageWithFallback} from "./imageProviders";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 属性別 ベースキャラクター
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const ATTR_CHARACTER: Record<string, string> = {
-  joy: "radiant fantasy hero, golden glowing aura, warm smile, luminous flowing hair, brilliant sun-motif armor",
-  anger: "fierce berserker warrior, blazing crimson energy, burning intense eyes, battle-scarred dark armor with flame runes",
-  sadness: "serene ethereal mage, soft blue-violet glow, gentle melancholic eyes, midnight robes adorned with silver stars",
+// 属性ごとに複数のキャラクター案を用意し、カード名のハッシュで決定的に選ぶ。
+// 単一の固定文言だと全カードの顔立ちがほぼ同じになってしまうため、
+// アーキタイプ・髪型・髪色・表情・鎧の意匠を変えたバリエーションを持たせる。
+// 前半5個=人型、後半5個=精霊・幻獣・エレメンタル等の非人型（属性の世界観は共通のまま多様化する）。
+const ATTR_CHARACTER_VARIANTS: Record<string, string[]> = {
+  joy: [
+    "radiant fantasy hero, golden glowing aura, warm smile, luminous flowing golden hair, brilliant sun-motif armor",
+    "cheerful young paladin, golden glowing aura, bright confident grin, short auburn hair, ornate sun-crest breastplate",
+    "noble sunlit priestess, golden glowing aura, serene gentle smile, long braided silver-blonde hair, flowing golden vestments",
+    "spirited boy warrior, golden glowing aura, energetic beaming grin, spiky bronze hair, sun-emblazoned leather armor",
+    "elegant solar knight, golden glowing aura, calm composed expression, wavy chestnut hair, gilded ceremonial plate armor",
+    "majestic golden phoenix spirit, golden glowing aura, blazing radiant plumage, fiery sun-crest crown of feathers, no human features",
+    "guardian sun lion beast, golden glowing aura, regal golden mane, glowing amber eyes, ornate gold-plated harness, no human features",
+    "small radiant sun sprite, golden glowing aura, glowing childlike wisp form, trailing sparks of light, no human features",
+    "celestial golden serpent deity, golden glowing aura, gleaming scaled coils, crowned with a solar halo, no human features",
+    "living sunflower golem, golden glowing aura, petal-crowned wooden body, radiant core glowing within its chest, no human features",
+  ],
+  anger: [
+    "fierce berserker warrior, blazing crimson energy, burning intense eyes, battle-scarred dark armor with flame runes",
+    "towering flame gladiator, blazing crimson energy, snarling fierce expression, shaved head with ember tattoos, spiked obsidian armor",
+    "ruthless war chieftain, blazing crimson energy, cold furious glare, long braided black hair, crimson battle-worn plate mail",
+    "young hotblooded duelist, blazing crimson energy, wild grinning snarl, messy red hair, scorched leather war vest",
+    "stoic flame sentinel, blazing crimson energy, grim determined stare, close-cropped grey hair, ash-blackened iron armor",
+    "monstrous crimson dragon warlord, blazing crimson energy, jagged obsidian horns, molten cracks glowing across its hide, no human features",
+    "living magma golem, blazing crimson energy, cracked volcanic rock body, rivers of glowing lava within, no human features",
+    "infernal fire salamander spirit, blazing crimson energy, serpentine flame-wreathed body, ember-trailing tail, no human features",
+    "demonic obsidian oni beast, blazing crimson energy, twisted curved horns, smoldering ember-red eyes, no human features",
+    "ferocious ember wolf spirit, blazing crimson energy, flame-licked fur, glowing molten claws, no human features",
+  ],
+  sadness: [
+    "serene ethereal mage, soft blue-violet glow, gentle melancholic eyes, midnight robes adorned with silver stars",
+    "solemn moonlit oracle, soft blue-violet glow, downcast tearful gaze, long silver hair, flowing indigo mourning veil",
+    "quiet frost wanderer, soft blue-violet glow, distant wistful stare, short pale-blue hair, tattered midnight-blue cloak",
+    "melancholic young witch, soft blue-violet glow, soft sorrowful smile, dark wavy hair with silver streaks, star-embroidered violet dress",
+    "weary twilight sage, soft blue-violet glow, tired hollow eyes, long unkempt grey-blue hair, faded indigo scholar robes",
+    "spectral moon wraith, soft blue-violet glow, translucent flowing ghostly form, hollow starlit eyes, no human features",
+    "nine-tailed frost kitsune spirit, soft blue-violet glow, silvery-blue flowing fur, glowing crescent moon markings, no human features",
+    "deep-sea leviathan spirit, soft blue-violet glow, bioluminescent trailing fins, ancient sorrowful eyes, no human features",
+    "shadow raven familiar, soft blue-violet glow, midnight feathers dusted with starlight, glowing violet eyes, no human features",
+    "weeping willow tree spirit, soft blue-violet glow, drooping star-lit branches, a faint sorrowful face in its bark, no human features",
+  ],
 };
+
+// カード名+属性から決定的にバリエーションを選ぶ（同じ入力なら常に同じ見た目になる）
+function pickCharacterVariant(attribute: string, seedKey: string): string {
+  const variants = ATTR_CHARACTER_VARIANTS[attribute] ?? ATTR_CHARACTER_VARIANTS["joy"];
+  let hash = 0;
+  for (let i = 0; i < seedKey.length; i++) {
+    hash = (hash * 31 + seedKey.charCodeAt(i)) >>> 0;
+  }
+  return variants[hash % variants.length];
+}
 
 const ATTR_PALETTE: Record<string, string> = {
   joy: "warm golden amber sunlit color palette, bright vivid contrast",
@@ -168,7 +213,7 @@ const WORD_MAP: Record<string, WordDef> = {
   "オーロラ": {en: "under dazzling aurora borealis", cat: "nature"},
   "光": {en: "emanating brilliant radiant light", cat: "power"},
   "影": {en: "casting dramatic dark shadows", cat: "abstract"},
-  "輝き": {en: "sparkling with brilliant particles", cat: "power"},
+  "煌めき": {en: "sparkling with brilliant particles", cat: "power"},
   "煌き": {en: "glittering with dazzling brilliance", cat: "power"},
   "暗黒": {en: "surrounded by dark void energy", cat: "power"},
   "真紅": {en: "with deep scarlet glowing red", cat: "power"},
@@ -232,7 +277,14 @@ interface GenerateImageRequest {
 
 export const generateCardImage = functions
   .region("asia-northeast1")
-  .runWith({timeoutSeconds: 120, memory: "256MB"})
+  .runWith({
+    timeoutSeconds: 120,
+    memory: "256MB",
+    // REPLICATE_API_TOKEN は未登録（スキップ中）。generateImageWithFallbackは
+    // トークン無し時にエラーを投げ、自動的にLeonardoへフォールバックする。
+    // Replicateを登録したら IMAGE_PROVIDER_SECRETS （imageProviders.ts）に差し替える。
+    secrets: ["LEONARDO_API_KEY"],
+  })
   .https.onCall(async (data: GenerateImageRequest, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "認証が必要です");
@@ -246,7 +298,8 @@ export const generateCardImage = functions
     const cardName = (data.cardName ?? "").trim();
 
     // ── ベース要素（属性・レアリティで固定） ──
-    const character = ATTR_CHARACTER[attr] ?? ATTR_CHARACTER["joy"];
+    // カード名+属性をシードに人型/非人型を含む10案から決定的に選ぶ（同名同属性なら再生成しても同じ見た目）
+    const character = pickCharacterVariant(attr, `${cardName}:${attr}`);
     const palette = ATTR_PALETTE[attr] ?? ATTR_PALETTE["joy"];
     const bg = RARITY_BG[attr]?.[rarity] ?? RARITY_BG["joy"]["n"];
     const pose = TYPE_POSE[cardType] ?? TYPE_POSE["balance"];
@@ -293,46 +346,16 @@ export const generateCardImage = functions
       "duplicate, oversaturated, washed out",
     ].join(", ");
 
-    // ── Replicate Flux Schnell ──
-    const response = await fetch("https://api.replicate.com/v1/predictions", {
-      method: "POST",
-      headers: {
-        Authorization: `Token ${REPLICATE_API_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        version: "5f24084160c9089501c1b3545d9be3c27883ae2239b6f412990e82d4a6210f8f",
-        input: {
-          prompt,
-          negative_prompt: negativePrompt,
-          width: 512,
-          height: 512,
-          num_outputs: 1,
-          num_inference_steps: 4,
-        },
-      }),
-    });
-
-    const prediction = (await response.json()) as {id: string; status: string; output?: string[]};
-
-    let result = prediction;
-    let attempts = 0;
-    while (result.status !== "succeeded" && result.status !== "failed" && attempts < 15) {
-      await new Promise((r) => setTimeout(r, 2000));
-      const poll = await fetch(`https://api.replicate.com/v1/predictions/${result.id}`, {
-        headers: {Authorization: `Token ${REPLICATE_API_TOKEN}`},
-      });
-      result = (await poll.json()) as typeof prediction;
-      attempts++;
+    // ── 画像生成: Replicate(Flux Schnell)を優先、失敗時はLeonardo(Phoenix 1.0)へフォールバック ──
+    let imageBuffer: Buffer;
+    let providerUsed: "replicate" | "leonardo";
+    try {
+      const generated = await generateImageWithFallback(prompt, negativePrompt);
+      imageBuffer = generated.buffer;
+      providerUsed = generated.provider;
+    } catch {
+      throw new functions.https.HttpsError("internal", "画像生成に失敗しました（Replicate/Leonardo両方失敗）");
     }
-
-    if (result.status !== "succeeded" || !result.output?.[0]) {
-      throw new functions.https.HttpsError("internal", "画像生成に失敗しました");
-    }
-
-    const imageUrl = result.output[0];
-    const imageResponse = await fetch(imageUrl);
-    const imageBuffer = await imageResponse.buffer();
 
     const bucket = admin.storage().bucket();
     const userId = context.auth.uid;
@@ -343,5 +366,5 @@ export const generateCardImage = functions
     await file.makePublic();
 
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
-    return {imageUrl: publicUrl, promptUsed: prompt};
+    return {imageUrl: publicUrl, promptUsed: prompt, provider: providerUsed};
   });

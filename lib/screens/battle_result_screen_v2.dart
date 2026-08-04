@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/user_card.dart';
 import '../providers/game_state_provider.dart';
 import '../services/battle_engine.dart';
 import '../services/sound_service.dart';
 import '../widgets/confetti_painter.dart';
 import '../widgets/daily_quests_widget.dart';
+import '../widgets/card_widget.dart';
+import '../providers/daily_mission_provider.dart';
+import '../theme/kingdom_theme.dart';
+import '../l10n/app_localizations.dart';
 
 class BattleResultScreenV2 extends ConsumerStatefulWidget {
   final BattleResult result;
@@ -32,6 +37,7 @@ class BattleResultScreenV2 extends ConsumerStatefulWidget {
 class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
   int _streakBonus = 0;
   int _newStreak = 0;
+  int _pvpBonusGranted = 0;
 
   @override
   void initState() {
@@ -39,25 +45,104 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       playSound(widget.result.attackerWon ? SoundEffect.victory : SoundEffect.defeat);
       _updateStreak();
+      if (widget.isPvP && widget.result.attackerWon) _updatePvpBonus();
       _updateQuests();
+      _updateDailyMissions();
     });
+  }
+
+  // PvP勝利ボーナス（1日上限🪙20をstreakBonusと共有・実際に加算する）
+  void _updatePvpBonus() {
+    final w = ref.read(walletProvider);
+    final (updatedWallet, granted) = w.grantDailyBonus(1);
+    _pvpBonusGranted = granted;
+    if (granted > 0) {
+      ref.read(walletProvider.notifier).state = updatedWallet;
+    }
+    setState(() {});
   }
 
   void _updateStreak() {
     final w = ref.read(walletProvider);
     if (widget.result.attackerWon) {
       _newStreak = w.winStreak + 1;
-      final bonus = ref.read(walletProvider).copyWith(winStreak: _newStreak).streakBonus;
-      _streakBonus = bonus > (w.copyWith(winStreak: w.winStreak).streakBonus) ? bonus : 0;
-      ref.read(walletProvider.notifier).state = w.copyWith(
-        winStreak: _newStreak,
-        coinBalance: w.coinBalance + (_streakBonus),
-      );
+      final oldTierBonus = w.streakBonus;
+      final newTierBonus = w.copyWith(winStreak: _newStreak).streakBonus;
+      // 新しい連勝ボーナス段階に達した分だけを付与する（前段階の額を含む値をそのまま
+      // 付与すると、連勝が伸びるたびに過去の段階分まで多重に加算されてしまうバグがあった）
+      final rawBonus = newTierBonus > oldTierBonus ? (newTierBonus - oldTierBonus) : 0;
+      // 1日あたりのボーナス上限（🪙20）を実際に強制する。
+      // これが無かったため、連勝をわざと途切れさせて3連勝ボーナスを無限に稼げてしまっていた。
+      final (updatedWallet, granted) =
+          w.copyWith(winStreak: _newStreak).grantDailyBonus(rawBonus);
+      _streakBonus = granted;
+      ref.read(walletProvider.notifier).state = updatedWallet;
     } else {
       _newStreak = 0;
       ref.read(walletProvider.notifier).state = w.copyWith(winStreak: 0);
     }
     setState(() {});
+  }
+
+  void _shareReplay() {
+    final t = AppLocalizations.of(context)!;
+    final isWin = widget.result.attackerWon;
+    final totalDamage = widget.result.logs.fold<int>(0, (prev, log) => prev + log.damage);
+    final advantageHits = widget.result.logs.where((l) => l.isAdvantage).length;
+    final opponent = widget.opponentName ?? 'AI';
+
+    final buffer = StringBuffer()
+      ..writeln(t.battleResult_shareHeader)
+      ..writeln(isWin ? t.battleResult_shareWin(opponent) : t.battleResult_shareLoss(opponent))
+      ..writeln(t.battleResult_shareStats(widget.result.logs.length, totalDamage, advantageHits))
+      ..writeln();
+
+    for (final log in widget.result.logs) {
+      final mark = log.isAdvantage ? '✨' : log.isDisadvantage ? '❄️' : '⚔️';
+      final attacker = log.attackingCard?.nameJp ?? '?';
+      final defender = log.defendingCard?.nameJp ?? '?';
+      buffer.writeln('T${log.turn} $mark $attacker → $defender  -${log.damage}');
+    }
+
+    buffer.writeln();
+    buffer.writeln(t.battleResult_shareHashtag);
+
+    Share.share(buffer.toString());
+  }
+
+  void _updateDailyMissions() {
+    final totalDamage = widget.result.logs.fold<int>(0, (prev, log) => prev + log.damage);
+    final myAttributes = widget.myDeck.map((c) => c.attribute).toSet();
+    updateMissionProgress(
+      ref,
+      isWin: widget.result.attackerWon,
+      attributesUsed: myAttributes,
+      damageDealt: totalDamage,
+    );
+  }
+
+  // 今回のバトルで最も貢献したカード（自デッキ内で与ダメージ合計が最大のもの）
+  PlayCard? get _mvpCard {
+    final myCardIds = widget.myDeck.map((c) => c.cardId).toSet();
+    final damageByCard = <String, int>{};
+    for (final log in widget.result.logs) {
+      final atk = log.attackingCard;
+      if (atk != null && myCardIds.contains(atk.cardId)) {
+        damageByCard[atk.cardId] = (damageByCard[atk.cardId] ?? 0) + log.damage;
+      }
+    }
+    if (damageByCard.isEmpty) return null;
+    final topId =
+        damageByCard.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    return widget.myDeck.firstWhere((c) => c.cardId == topId);
+  }
+
+  int get _mvpDamage {
+    final mvp = _mvpCard;
+    if (mvp == null) return 0;
+    return widget.result.logs
+        .where((l) => l.attackingCard?.cardId == mvp.cardId)
+        .fold<int>(0, (prev, l) => prev + l.damage);
   }
 
   void _updateQuests() {
@@ -76,8 +161,9 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final isWin = widget.result.attackerWon;
-    final bgColor = isWin ? Colors.green : Colors.red;
+    final accent = isWin ? Kingdom.gilt : Kingdom.angerCrimson;
 
     return PopScope(
       canPop: false,
@@ -87,17 +173,22 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
         }
       },
       child: Scaffold(
+        backgroundColor: Kingdom.nightDeep,
         body: Stack(
           children: [
-            Container(
+            DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [bgColor[900]!, bgColor[700]!],
+                  colors: isWin
+                      ? const [Color(0xFF3D2C0A), Kingdom.nightDeep]
+                      : const [Color(0xFF3A1210), Kingdom.nightDeep],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
               ),
+              child: const SizedBox.expand(),
             ),
+            Positioned.fill(child: EmotionMoteField(count: 10)),
             // 勝利時の紙吹雪
             if (isWin) const Positioned.fill(child: ConfettiOverlay()),
             SafeArea(
@@ -107,14 +198,20 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
                   const SizedBox(height: 20),
 
                   // 勝敗表示
-                  _buildResultHeader(isWin),
+                  _buildResultHeader(isWin, accent),
 
                   const SizedBox(height: 30),
 
                   // 統計情報
-                  _buildStatsPanel(),
+                  _buildStatsPanel(accent),
 
                   const SizedBox(height: 24),
+
+                  // MVPカード（勝利時のみ・達成感を演出）
+                  if (isWin && _mvpCard != null) ...[
+                    _buildMvpPanel(),
+                    const SizedBox(height: 24),
+                  ],
 
                   // デッキ比較
                   _buildDeckComparison(),
@@ -127,8 +224,8 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
                     const SizedBox(height: 24),
                   ],
 
-                  // ボーナス情報（PvP の場合）
-                  if (widget.isPvP) ...[
+                  // ボーナス情報（PvP勝利時のみ）
+                  if (widget.isPvP && isWin) ...[
                     _buildBonusInfo(),
                     const SizedBox(height: 24),
                   ],
@@ -139,19 +236,25 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
                     child: Column(
                       children: [
                         // もう一度バトル
+                        RoyalButton(
+                          label: t.battleResult_playAgain,
+                          icon: Icons.replay,
+                          accent: accent,
+                          height: 56,
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        const SizedBox(height: 12),
+                        // リプレイを共有
                         SizedBox(
                           width: double.infinity,
-                          height: 56,
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                            icon: const Icon(Icons.replay),
-                            label: const Text('もう一度バトル'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: bgColor[900],
-                              textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          height: 48,
+                          child: OutlinedButton.icon(
+                            onPressed: _shareReplay,
+                            icon: Icon(Icons.share, color: Kingdom.parchment.withValues(alpha: 0.8)),
+                            label: Text(t.battleResult_shareReplay,
+                                style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.8))),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Kingdom.parchment.withValues(alpha: 0.35)),
                             ),
                           ),
                         ),
@@ -162,10 +265,11 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
                           height: 48,
                           child: OutlinedButton.icon(
                             onPressed: () => Navigator.popUntil(context, ModalRoute.withName('/')),
-                            icon: const Icon(Icons.home, color: Colors.white70),
-                            label: const Text('ホームに戻る', style: TextStyle(color: Colors.white70)),
+                            icon: Icon(Icons.home, color: Kingdom.parchment.withValues(alpha: 0.8)),
+                            label: Text(t.battleResult_backHome,
+                                style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.8))),
                             style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.white54),
+                              side: BorderSide(color: Kingdom.parchment.withValues(alpha: 0.35)),
                             ),
                           ),
                         ),
@@ -183,7 +287,8 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
     );
   }
 
-  Widget _buildResultHeader(bool isWin) {
+  Widget _buildResultHeader(bool isWin, Color accent) {
+    final t = AppLocalizations.of(context)!;
     return Column(
       children: [
         TweenAnimationBuilder<double>(
@@ -193,93 +298,61 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
             return Transform.scale(
               scale: value,
               child: Text(
-                isWin ? '🎉' : '😢',
-                style: const TextStyle(fontSize: 80),
+                isWin ? '👑' : '💔',
+                style: const TextStyle(fontSize: 76),
               ),
             );
           },
         ),
         const SizedBox(height: 16),
         Text(
-          isWin ? '勝利！' : '敗北',
+          isWin ? t.battleResult_winTitle : t.battleResult_lossTitle,
           style: TextStyle(
-            fontSize: 48,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            shadows: [
-              Shadow(
-                offset: const Offset(0, 4),
-                blurRadius: 8,
-                color: Colors.black.withValues(alpha: 0.4),
-              ),
+            fontFamily: Kingdom.displayFont,
+            fontSize: 44,
+            fontWeight: FontWeight.w900,
+            color: accent,
+            letterSpacing: 2,
+            shadows: const [
+              Shadow(offset: Offset(0, 3), blurRadius: 10, color: Colors.black54),
             ],
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          isWin ? 'おめでとうございます！' : 'また挑戦してください',
-          style: const TextStyle(
-            fontSize: 14,
-            color: Colors.white70,
-          ),
+          isWin ? t.battleResult_winSubtitle : t.battleResult_lossSubtitle,
+          style: TextStyle(fontSize: 13, color: Kingdom.parchment.withValues(alpha: 0.7)),
         ),
       ],
     );
   }
 
-  Widget _buildStatsPanel() {
+  Widget _buildStatsPanel(Color accent) {
+    final t = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
+      child: OrnateFrame(
+        accent: accent,
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 12,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
         child: Column(
           children: [
-            Text(
-              'バトル統計',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
-              ),
-            ),
+            Text(t.battleResult_statsTitle, style: Kingdom.label(size: 15, color: accent)),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
+                _StatBox(label: t.battleResult_statTurns, value: '${widget.result.logs.length}', icon: '⏱️'),
+                Container(width: 1, height: 60, color: Kingdom.parchment.withValues(alpha: 0.15)),
                 _StatBox(
-                  label: 'ターン数',
-                  value: '${widget.result.logs.length}',
-                  icon: '⏱️',
-                ),
-                Container(
-                  width: 1,
-                  height: 60,
-                  color: Colors.grey[300],
-                ),
-                _StatBox(
-                  label: '総ダメージ',
+                  label: t.battleResult_statTotalDamage,
                   value: '${widget.result.logs.fold<int>(0, (prev, log) => prev + log.damage)}',
                   icon: '⚔️',
                 ),
-                Container(
-                  width: 1,
-                  height: 60,
-                  color: Colors.grey[300],
-                ),
+                Container(width: 1, height: 60, color: Kingdom.parchment.withValues(alpha: 0.15)),
                 _StatBox(
-                  label: '残りHP',
-                  value: '${widget.result.attackerWon ? widget.result.finalAttackerHp : widget.result.finalDefenderHp}',
+                  label: t.battleResult_statRemainingHp,
+                  value:
+                      '${widget.result.attackerWon ? widget.result.finalAttackerHp : widget.result.finalDefenderHp}',
                   icon: '❤️',
                 ),
               ],
@@ -290,57 +363,84 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
     );
   }
 
+  // MVPカード表彰パネル（達成感の演出：どのカードが勝利に一番貢献したかを称える）
+  Widget _buildMvpPanel() {
+    final t = AppLocalizations.of(context)!;
+    final mvp = _mvpCard!;
+    final accentColor = Kingdom.attributeColor(mvp.attribute);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.4, end: 1.0),
+        duration: const Duration(milliseconds: 550),
+        curve: Curves.elasticOut,
+        builder: (_, scale, child) => Transform.scale(scale: scale, child: child),
+        child: OrnateFrame(
+          accent: Kingdom.gilt,
+          gradient: const LinearGradient(
+            colors: [Color(0xFF3D2C0A), Color(0xFF5A4110)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          child: Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(color: accentColor.withValues(alpha: 0.5), blurRadius: 14, spreadRadius: 1),
+                  ],
+                ),
+                child: CardThumbnail(card: mvp, size: 56),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t.battleResult_mvpLabel, style: Kingdom.label(size: 13, color: Kingdom.gilt)),
+                    const SizedBox(height: 4),
+                    Text(mvp.nameJp,
+                        style: TextStyle(
+                            color: Kingdom.parchment,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15)),
+                    const SizedBox(height: 2),
+                    Text(t.battleResult_mvpDamage(_mvpDamage),
+                        style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.7), fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildDeckComparison() {
+    final t = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '使用デッキ',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
+          Text(t.battle_yourDeck, style: Kingdom.label(size: 14, color: Kingdom.gilt)),
           const SizedBox(height: 12),
-          Container(
+          OrnateFrame(
+            accent: Kingdom.bronze,
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 for (final card in widget.myDeck)
                   Column(
                     children: [
-                      Container(
-                        width: 50,
-                        height: 70,
-                        decoration: BoxDecoration(
-                          gradient: _getCardGradient(card.attribute),
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.3),
-                              blurRadius: 6,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Center(
-                          child: Text(card.attribute == 'joy' ? '☀️' : card.attribute == 'anger' ? '🔥' : '🌙',
-                              style: const TextStyle(fontSize: 24)),
-                        ),
-                      ),
+                      CardThumbnail(card: card, size: 50),
                       const SizedBox(height: 4),
                       Text(
                         '${card.attackPower}/${card.defensePower}',
-                        style: const TextStyle(color: Colors.white70, fontSize: 10),
+                        style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.7), fontSize: 10),
                       ),
                     ],
                   ),
@@ -353,19 +453,16 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
   }
 
   Widget _buildStreakPanel() {
+    final t = AppLocalizations.of(context)!;
     final streakEmoji = _newStreak >= 7 ? '🔥🔥🔥' : _newStreak >= 5 ? '🔥🔥' : '🔥';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.deepOrange[800]!, Colors.orange[600]!],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.orange.withValues(alpha: 0.4), blurRadius: 12)],
+      child: OrnateFrame(
+        accent: Kingdom.angerCrimson,
+        gradient: const LinearGradient(
+          colors: [Kingdom.angerCrimsonDeep, Color(0xFF7A3A1A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
         child: Row(
           children: [
@@ -375,16 +472,22 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('$_newStreak連勝中！', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                  Text(t.battleResult_streakActive(_newStreak), style: Kingdom.label(size: 15, color: Kingdom.parchment)),
                   if (_streakBonus > 0)
-                    Text('+🪙$_streakBonus ストリークボーナス獲得!', style: const TextStyle(color: Colors.yellowAccent, fontSize: 12)),
+                    Text(t.battleResult_streakBonusEarned(_streakBonus),
+                        style: const TextStyle(color: Kingdom.gilt, fontSize: 12, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
             Column(
               children: [
-                Text('$_newStreak', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white)),
-                const Text('連勝', style: TextStyle(fontSize: 10, color: Colors.white70)),
+                Text('$_newStreak',
+                    style: TextStyle(
+                        fontFamily: Kingdom.displayFont,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w900,
+                        color: Kingdom.parchment)),
+                Text(t.battleResult_streakLabel, style: TextStyle(fontSize: 10, color: Kingdom.parchment.withValues(alpha: 0.7))),
               ],
             ),
           ],
@@ -394,75 +497,42 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
   }
 
   Widget _buildBonusInfo() {
-    const bonusAmount = 1;
+    final t = AppLocalizations.of(context)!;
+    final remaining = ref.watch(walletProvider).remainingDailyBonusCap;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.amber[700]!, Colors.amber[500]!],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(12),
+      child: OrnateFrame(
+        accent: Kingdom.gilt,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF3D2C0A), Color(0xFF5A4110)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
         child: Column(
           children: [
-            const Text(
-              '💰 PvP ボーナス',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
+            Text(t.battleResult_pvpBonusTitle, style: Kingdom.label(size: 13, color: Kingdom.gilt)),
             const SizedBox(height: 8),
-            const Text(
-              '本日の対戦勝利',
-              style: TextStyle(color: Colors.white70, fontSize: 12),
-            ),
+            Text(t.battleResult_pvpBonusSubtitle, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.7), fontSize: 12)),
             const SizedBox(height: 4),
-            Text(
-              '+🪙$bonusAmount',
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
+            _pvpBonusGranted > 0
+                ? Text(t.battleResult_pvpBonusAmount(_pvpBonusGranted),
+                    style: TextStyle(
+                        fontFamily: Kingdom.displayFont,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        color: Kingdom.gilt))
+                : Text(t.battleResult_pvpBonusCapReached,
+                    style: TextStyle(
+                        color: Kingdom.parchment.withValues(alpha: 0.7),
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text(
-              '（1日上限 🪙20、次のリセット: JST 00:00）',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11),
-            ),
+            Text(t.battleResult_pvpBonusCapInfo(kDailyBonusCoinCap, remaining),
+                style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.6), fontSize: 11)),
           ],
         ),
       ),
     );
-  }
-
-  LinearGradient _getCardGradient(String attribute) {
-    switch (attribute) {
-      case 'joy':
-        return LinearGradient(
-          colors: [Colors.yellow[600]!, Colors.amber[400]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        );
-      case 'anger':
-        return LinearGradient(
-          colors: [Colors.red[600]!, Colors.orange[400]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        );
-      default:
-        return LinearGradient(
-          colors: [Colors.blue[600]!, Colors.indigo[400]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        );
-    }
   }
 }
 
@@ -485,13 +555,14 @@ class _StatBox extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           value,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(
+              fontFamily: Kingdom.displayFont,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Kingdom.parchment),
         ),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-        ),
+        Text(label, style: TextStyle(fontSize: 10, color: Kingdom.parchment.withValues(alpha: 0.5))),
       ],
     );
   }

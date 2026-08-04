@@ -18,6 +18,9 @@ class UserCard {
   final int wins;
   final int losses;
   final Timestamp createdAt;
+  // 共同創作: もう一人のクリエイター（null = 単独創作）
+  final String? coCreatorId;
+  final String? coCreatorName;
 
   UserCard({
     required this.cardId,
@@ -37,10 +40,13 @@ class UserCard {
     this.wins = 0,
     this.losses = 0,
     required this.createdAt,
+    this.coCreatorId,
+    this.coCreatorName,
   });
 
   String get nameJp => cardName['jp'] ?? '';
   String get nameEn => cardName['en'] ?? '';
+  bool get isCoCreated => coCreatorId != null && coCreatorId!.isNotEmpty;
 
   String getCardType() {
     final params = [attackPower, defensePower, speed];
@@ -71,6 +77,8 @@ class UserCard {
     'wins': wins,
     'losses': losses,
     'createdAt': createdAt,
+    'coCreatorId': coCreatorId,
+    'coCreatorName': coCreatorName,
   };
 
   factory UserCard.fromMap(Map<String, dynamic> map) => UserCard(
@@ -91,6 +99,8 @@ class UserCard {
     wins: map['wins'] ?? 0,
     losses: map['losses'] ?? 0,
     createdAt: map['createdAt'] ?? Timestamp.now(),
+    coCreatorId: map['coCreatorId'],
+    coCreatorName: map['coCreatorName'],
   );
 
   UserCard copyWith({
@@ -120,6 +130,8 @@ class UserCard {
       wins: wins ?? this.wins,
       losses: losses ?? this.losses,
       createdAt: createdAt,
+      coCreatorId: coCreatorId,
+      coCreatorName: coCreatorName,
     );
   }
 }
@@ -138,6 +150,8 @@ class PlayCard {
   final String nameJp;
   final String imageUrl;
   final bool isSeedCard;
+  // 共同創作: もう一人のクリエイター名（null = 単独創作）
+  final String? coCreatorName;
 
   PlayCard({
     required this.cardId,
@@ -149,7 +163,10 @@ class PlayCard {
     required this.nameJp,
     this.imageUrl = '',
     this.isSeedCard = true,
+    this.coCreatorName,
   });
+
+  bool get isCoCreated => coCreatorName != null && coCreatorName!.isNotEmpty;
 
   CardRarity get rarity => switch (cost) {
     1 => CardRarity.n,

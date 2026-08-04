@@ -1,6 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/user_card.dart';
 import '../data/seed_cards_data.dart';
+import 'auth_provider.dart';
 
 // 全カード（シードカード→PlayCard変換）プロバイダー
 final allPlayCardsProvider = Provider<List<PlayCard>>((ref) {
@@ -12,7 +15,7 @@ final allPlayCardsProvider = Provider<List<PlayCard>>((ref) {
     defensePower: sc.defensePower,
     speed: sc.speed,
     nameJp: sc.nameJp,
-    imageUrl: '',
+    imageUrl: sc.imageUrl,
     isSeedCard: true,
   )).toList();
 });
@@ -27,29 +30,60 @@ final defenseDeckProvider = StateProvider<List<PlayCard>>((ref) {
 // 攻撃デッキ選択中
 final selectedAttackDeckProvider = StateProvider<List<PlayCard>>((ref) => []);
 
+// 連勝/PvPボーナスの1日あたり合計獲得上限（コイン）
+// UI文言「1日上限🪙20」に対応する、実際に強制する側の定数
+const int kDailyBonusCoinCap = 20;
+
+// JST（UTC+9）基準の「今日」を yyyy-MM-dd 文字列で返す
+// 端末のタイムゾーン設定に依存せず日次リセットの境界を揃えるため
+String todayKeyJst() {
+  final jstNow = DateTime.now().toUtc().add(const Duration(hours: 9));
+  return '${jstNow.year.toString().padLeft(4, '0')}-'
+      '${jstNow.month.toString().padLeft(2, '0')}-'
+      '${jstNow.day.toString().padLeft(2, '0')}';
+}
+
 // ユーザーウォレット
 class WalletState {
   final int totalPoints;
   final int todayPoints;
   final int todayWins;
   final int coinBalance;
+  final int gemBalance;
   final int winStreak; // 連勝数
+  final int dailyBonusCoinsEarned; // dailyBonusDate内で連勝/PvPボーナスにより獲得した累計コイン
+  final String dailyBonusDate; // dailyBonusCoinsEarned が対応する日付（JST, yyyy-MM-dd）
 
   const WalletState({
     this.totalPoints = 0,
     this.todayPoints = 0,
     this.todayWins = 0,
     this.coinBalance = 100,
+    this.gemBalance = 0,
     this.winStreak = 0,
+    this.dailyBonusCoinsEarned = 0,
+    this.dailyBonusDate = '',
   });
 
-  WalletState copyWith({int? totalPoints, int? todayPoints, int? todayWins, int? coinBalance, int? winStreak}) =>
+  WalletState copyWith({
+    int? totalPoints,
+    int? todayPoints,
+    int? todayWins,
+    int? coinBalance,
+    int? gemBalance,
+    int? winStreak,
+    int? dailyBonusCoinsEarned,
+    String? dailyBonusDate,
+  }) =>
     WalletState(
       totalPoints: totalPoints ?? this.totalPoints,
       todayPoints: todayPoints ?? this.todayPoints,
       todayWins: todayWins ?? this.todayWins,
       coinBalance: coinBalance ?? this.coinBalance,
+      gemBalance: gemBalance ?? this.gemBalance,
       winStreak: winStreak ?? this.winStreak,
+      dailyBonusCoinsEarned: dailyBonusCoinsEarned ?? this.dailyBonusCoinsEarned,
+      dailyBonusDate: dailyBonusDate ?? this.dailyBonusDate,
     );
 
   /// 連勝ボーナス: 3連勝=+5, 5連勝=+10, 7連勝+=+15
@@ -59,9 +93,123 @@ class WalletState {
     if (winStreak >= 3) return 5;
     return 0;
   }
+
+  // 今日すでに使った分を差し引いた、残りの1日ボーナス上限
+  int get remainingDailyBonusCap {
+    final earnedToday = dailyBonusDate == todayKeyJst() ? dailyBonusCoinsEarned : 0;
+    final remaining = kDailyBonusCoinCap - earnedToday;
+    return remaining < 0 ? 0 : remaining;
+  }
+
+  // 1日上限を考慮した上で、実際に獲得した後のウォレット状態を返す
+  // 戻り値: (更新後のWalletState, 実際に加算されたコイン額)
+  (WalletState, int) grantDailyBonus(int rawAmount) {
+    if (rawAmount <= 0) return (this, 0);
+    final today = todayKeyJst();
+    final earnedToday = dailyBonusDate == today ? dailyBonusCoinsEarned : 0;
+    final remaining = kDailyBonusCoinCap - earnedToday;
+    final granted = rawAmount > remaining ? (remaining < 0 ? 0 : remaining) : rawAmount;
+    if (granted <= 0) return (this, 0);
+    return (
+      copyWith(
+        coinBalance: coinBalance + granted,
+        dailyBonusCoinsEarned: earnedToday + granted,
+        dailyBonusDate: today,
+      ),
+      granted,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'totalPoints': totalPoints,
+    'todayPoints': todayPoints,
+    'todayWins': todayWins,
+    'coinBalance': coinBalance,
+    'gemBalance': gemBalance,
+    'winStreak': winStreak,
+    'dailyBonusCoinsEarned': dailyBonusCoinsEarned,
+    'dailyBonusDate': dailyBonusDate,
+    'updatedAt': FieldValue.serverTimestamp(),
+  };
+
+  factory WalletState.fromMap(Map<String, dynamic> map) {
+    return WalletState(
+      totalPoints: map['totalPoints'] ?? 0,
+      todayPoints: map['todayPoints'] ?? 0,
+      todayWins: map['todayWins'] ?? 0,
+      coinBalance: map['coinBalance'] ?? 100,
+      gemBalance: map['gemBalance'] ?? 0,
+      winStreak: map['winStreak'] ?? 0,
+      dailyBonusCoinsEarned: map['dailyBonusCoinsEarned'] ?? 0,
+      dailyBonusDate: map['dailyBonusDate'] ?? '',
+    );
+  }
 }
 
+// ローカル状態管理用（既存）
 final walletProvider = StateProvider<WalletState>((ref) => const WalletState());
+
+// Firestore統合版：ユーザーのウォレット
+final userWalletProvider = FutureProvider<WalletState>((ref) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) {
+    return const WalletState();
+  }
+
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('wallet')
+        .doc('balance')
+        .get();
+
+    if (doc.exists) {
+      return WalletState.fromMap(doc.data() ?? {});
+    } else {
+      // 初回作成
+      final initialWallet = const WalletState();
+      await doc.reference.set(initialWallet.toMap());
+      return initialWallet;
+    }
+  } catch (e) {
+    debugPrint('Error loading wallet: $e');
+    return const WalletState();
+  }
+});
+
+// 自分のPvPレーティング（pvpBattle Cloud Functionがusers/{uid}/rating/currentを更新する）
+final myRatingProvider = FutureProvider<int>((ref) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return 1000;
+
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('rating')
+        .doc('current')
+        .get();
+    return (doc.data()?['rating'] as int?) ?? 1000;
+  } catch (e) {
+    debugPrint('Error loading rating: $e');
+    return 1000;
+  }
+});
+
+// ウォレット更新関数
+Future<void> updateWallet(String userId, WalletState wallet) async {
+  try {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('wallet')
+        .doc('balance')
+        .set(wallet.toMap(), SetOptions(merge: true));
+  } catch (e) {
+    debugPrint('Error updating wallet: $e');
+  }
+}
 
 // 連続ログイン日数（1-7 でローテーション。本実装では Firebase で日付管理予定）
 final loginStreakProvider = StateProvider<int>((ref) => 1);

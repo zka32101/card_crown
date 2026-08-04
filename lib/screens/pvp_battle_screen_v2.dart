@@ -1,38 +1,38 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/user_card.dart';
 import '../models/battle_models.dart';
 import '../services/battle_engine.dart';
+import '../services/functions_service.dart';
 import '../providers/game_state_provider.dart';
 import '../services/sound_service.dart';
 import '../widgets/card_widget.dart';
 import 'deck_selection_screen_v2.dart';
 import 'battle_result_screen_v2.dart';
+import '../models/daily_emotion_card.dart';
+import '../providers/daily_emotion_provider.dart';
+import '../providers/migration_provider.dart';
+import '../theme/kingdom_theme.dart';
+import '../l10n/app_localizations.dart';
+
+// 今日のきもちカードの感情属性 → バトル属性文字列
+String? _emotionToAttribute(EmotionType? emotion) => switch (emotion) {
+      EmotionType.joy => 'joy',
+      EmotionType.anger => 'anger',
+      EmotionType.sadness => 'sadness',
+      null => null,
+    };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 属性テーマ定義
+// 属性テーマ定義（王国パレット）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Color _attrColor(String? a) => switch (a) {
-      'joy' => const Color(0xFFFFD700),
-      'anger' => const Color(0xFFFF3300),
-      'sadness' => const Color(0xFF44AAFF),
-      _ => Colors.grey,
-    };
+Color _attrColor(String? a) => Kingdom.attributeColor(a);
 
-Color _attrGlow(String? a) => switch (a) {
-      'joy' => const Color(0xFFFFAA00),
-      'anger' => const Color(0xFFFF2200),
-      'sadness' => const Color(0xFF0077FF),
-      _ => Colors.grey,
-    };
+Color _attrGlow(String? a) => Kingdom.attributeColorDeep(a);
 
-List<Color> _attrBgGradient(String? a) => switch (a) {
-      'joy' => [const Color(0xFF1A1200), const Color(0xFF2A1A00)],
-      'anger' => [const Color(0xFF1A0300), const Color(0xFF2A0800)],
-      'sadness' => [const Color(0xFF000D20), const Color(0xFF000B30)],
-      _ => [const Color(0xFF0D0820), const Color(0xFF001018)],
-    };
+List<Color> _attrBgGradient(String? a) => Kingdom.attributeGradient(a);
 
 String _attrEmoji(String? a) => switch (a) {
       'joy' => '☀️',
@@ -71,7 +71,17 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
   List<BattleLog> _displayedLogs = [];
   int _myHp = 30;
   int _aiHp = 30;
+  int _prevMyHp = 30;
+  int _prevAiHp = 30;
   BattleLog? _latestLog;
+  bool _isFinalTurn = false;
+  bool _showComeback = false;
+  int _comboCount = 0;
+  Offset? _tapEffectPos;
+  // ヒット中のタップで参加感を出す「気合」カウント（表示のみ・ダメージには影響しない）
+  int _spiritCount = 0;
+  // 決着後、結果画面に遷移する前に一呼吸置いて勝敗をはっきり伝える
+  bool _showConclusion = false;
 
   late AnimationController _dotController;
   late AnimationController _pulseController;
@@ -80,6 +90,8 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
   late AnimationController _shakeController;
   late AnimationController _auraController;
   late AnimationController _particleController;
+  late AnimationController _comebackController;
+  late AnimationController _tapEffectController;
 
   @override
   void initState() {
@@ -102,6 +114,10 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
     _particleController = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 2200))
       ..repeat();
+    _comebackController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1100));
+    _tapEffectController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 500));
   }
 
   @override
@@ -113,27 +129,60 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
     _shakeController.dispose();
     _auraController.dispose();
     _particleController.dispose();
+    _comebackController.dispose();
+    _tapEffectController.dispose();
     super.dispose();
+  }
+
+  void _onBattleTap(TapDownDetails details) {
+    // ヒット演出中のみ反応（見ているだけでなく参加している感覚を作る）
+    if (!_flashController.isAnimating) return;
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _tapEffectPos = details.localPosition;
+      _spiritCount++;
+    });
+    _tapEffectController.forward(from: 0);
   }
 
   Future<void> _startMatching() async {
     setState(() => _phase = _PvpPhase.matching);
-    await Future.delayed(const Duration(milliseconds: 2500));
+
+    final myRating = await ref.read(myRatingProvider.future);
     if (!mounted) return;
 
-    final allCards = ref.read(allPlayCardsProvider);
-    final anger =
-        allCards.where((c) => c.attribute == 'anger').skip(2).take(2).toList();
-    final sadness = allCards
-        .where((c) => c.attribute == 'sadness')
-        .skip(1)
-        .take(2)
-        .toList();
-    final joy =
-        allCards.where((c) => c.attribute == 'joy').skip(1).take(1).toList();
-    _opponentDeck = [...anger, ...sadness, ...joy];
-    _opponentName = 'Shadow_Player_47';
-    _opponentTier = '🥈シルバー';
+    try {
+      final match = await FunctionsService.pvpMatch(myRating);
+      final deckData = (match['opponentDeck'] as List).cast<Map>();
+      _opponentDeck = deckData
+          .map((c) => PlayCard(
+                cardId: c['cardId'] as String,
+                attribute: c['attribute'] as String,
+                cost: c['cost'] as int,
+                attackPower: c['attackPower'] as int,
+                defensePower: c['defensePower'] as int,
+                speed: c['speed'] as int,
+                nameJp: c['nameJp'] as String,
+              ))
+          .toList();
+      _opponentName = match['opponentName'] as String;
+      _opponentTier = match['opponentTier'] as String;
+    } catch (e) {
+      // マッチングに失敗した場合は固定の対戦相手にフォールバックする
+      final allCards = ref.read(allPlayCardsProvider);
+      final anger = allCards.where((c) => c.attribute == 'anger').skip(2).take(2).toList();
+      final sadness = allCards.where((c) => c.attribute == 'sadness').skip(1).take(2).toList();
+      final joy = allCards.where((c) => c.attribute == 'joy').skip(1).take(1).toList();
+      _opponentDeck = [...anger, ...sadness, ...joy];
+      _opponentName = 'Shadow_Player_47';
+      if (!mounted) return;
+      _opponentTier = AppLocalizations.of(context)!.pvpBattle_fallbackOpponentTier;
+    }
+    if (!mounted) return;
+
+    // マッチング演出の最低表示時間
+    await Future.delayed(const Duration(milliseconds: 1200));
+    if (!mounted) return;
 
     setState(() => _phase = _PvpPhase.battle);
     await _runBattle();
@@ -144,27 +193,124 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
       _displayedLogs = [];
       _myHp = 30;
       _aiHp = 30;
+      _prevMyHp = 30;
+      _prevAiHp = 30;
       _latestLog = null;
+      _isFinalTurn = false;
+      _showComeback = false;
+      _comboCount = 0;
+      _spiritCount = 0;
+      _showConclusion = false;
     });
 
-    _result = BattleEngine.simulate(_myDeck!, _opponentDeck!);
+    // サーバー権威でバトル判定（クライアント計算の改ざん防止・レーティング更新もサーバー側で行う）
+    // 呼び出し失敗時のみクライアント側BattleEngineにフォールバックする
+    try {
+      final cardLookup = <String, PlayCard>{
+        for (final c in [..._myDeck!, ..._opponentDeck!]) c.cardId: c,
+      };
+      final response = await FunctionsService.pvpBattle(
+        attackerDeck: _myDeck!.map((c) => c.toSnapshot()).toList(),
+        defenderDeckSnapshot: _opponentDeck!.map((c) => c.toSnapshot()).toList(),
+        defenderUid: 'ai_opponent',
+        migratedAttribute: ref.read(activeMigrationAttributeProvider),
+      );
+      final rawLogs = (response['logs'] as List).cast<Map>();
+      _result = BattleResult(
+        attackerWon: response['attackerWon'] as bool,
+        finalAttackerHp: response['finalAttackerHp'] as int,
+        finalDefenderHp: response['finalDefenderHp'] as int,
+        logs: rawLogs
+            .map((l) => BattleLog(
+                  turn: l['turn'] as int,
+                  action: '',
+                  damage: l['damage'] as int,
+                  attackerHp: l['attackerHp'] as int,
+                  defenderHp: l['defenderHp'] as int,
+                  attackingCard: cardLookup[l['attackerCardId']],
+                  defendingCard: cardLookup[l['defenderCardId']],
+                  multiplier: (l['multiplier'] as num).toDouble(),
+                ))
+            .toList(),
+      );
+    } catch (e) {
+      // サーバー呼び出しに失敗した場合はクライアント側で計算して続行する
+      _result = BattleEngine.simulate(
+        _myDeck!,
+        _opponentDeck!,
+        migratedAttribute: ref.read(activeMigrationAttributeProvider),
+      );
+    }
+    if (!mounted) return;
+    final logs = _result!.logs;
 
-    for (final log in _result!.logs) {
-      await Future.delayed(const Duration(milliseconds: 1100));
+    for (int i = 0; i < logs.length; i++) {
+      final log = logs[i];
+      final isFinalTurn = i == logs.length - 1;
+      final prevMyHp = _myHp;
+      final prevAiHp = _aiHp;
+
+      if (isFinalTurn) {
+        // 決着前の「ため」— 一瞬静止して緊張感を作る
+        await Future.delayed(const Duration(milliseconds: 650));
+        if (!mounted) return;
+      }
+
+      await Future.delayed(
+          Duration(milliseconds: isFinalTurn ? 1400 : 1100));
       if (!mounted) return;
+
+      final newMyHp = log.attackerHp;
+      final newAiHp = log.defenderHp;
+      final isComeback = prevMyHp < prevAiHp && newMyHp > newAiHp;
+
       playSound(SoundEffect.hit);
+      HapticFeedback.mediumImpact();
+      if (log.isAdvantage || isFinalTurn) {
+        HapticFeedback.heavyImpact();
+      }
+
+      // 決着ターンは演出をゆっくり・大きく
+      _flashController.duration =
+          Duration(milliseconds: isFinalTurn ? 700 : 380);
+      _damageController.duration =
+          Duration(milliseconds: isFinalTurn ? 1300 : 750);
+      _shakeController.duration =
+          Duration(milliseconds: isFinalTurn ? 600 : 350);
       _flashController.forward(from: 0);
       _damageController.forward(from: 0);
       _shakeController.forward(from: 0);
+
+      _comboCount = log.isAdvantage ? _comboCount + 1 : 0;
+
       setState(() {
         _displayedLogs.add(log);
         _latestLog = log;
-        _myHp = log.attackerHp;
-        _aiHp = log.defenderHp;
+        _prevMyHp = prevMyHp;
+        _prevAiHp = prevAiHp;
+        _myHp = newMyHp;
+        _aiHp = newAiHp;
+        _isFinalTurn = isFinalTurn;
+        _showComeback = isComeback;
       });
+
+      if (isComeback) {
+        playSound(SoundEffect.victory);
+        HapticFeedback.heavyImpact();
+        _comebackController.forward(from: 0);
+        await Future.delayed(const Duration(milliseconds: 900));
+        if (!mounted) return;
+      }
     }
 
-    await Future.delayed(const Duration(milliseconds: 800));
+    // 決着直後にすぐ画面遷移すると「何が起きたか分からない」まま終わるため、
+    // 勝敗をはっきり見せる一呼吸を挟んでから結果画面へ遷移する
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    setState(() => _showConclusion = true);
+    HapticFeedback.heavyImpact();
+    playSound(_result!.attackerWon ? SoundEffect.victory : SoundEffect.defeat);
+    await Future.delayed(const Duration(milliseconds: 1600));
     if (!mounted) return;
 
     Navigator.pushReplacement(
@@ -184,9 +330,10 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     return switch (_phase) {
       _PvpPhase.deckSelect => DeckSelectionScreenV2(
-          title: '⚔️ 攻撃デッキを選択（5枚）',
+          title: t.pvpBattle_selectAttackDeckTitle,
           onConfirm: (deck) {
             setState(() => _myDeck = deck);
             _startMatching();
@@ -200,12 +347,13 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
 
   // ─── マッチング画面 ───────────────────────
   Widget _buildMatchingView() {
+    final t = AppLocalizations.of(context)!;
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D1A),
-      body: Container(
+      backgroundColor: Kingdom.nightDeep,
+      body: DecoratedBox(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF0D0D1A), Color(0xFF1A1035), Color(0xFF0D0D1A)],
+            colors: [Kingdom.nightDeep, Kingdom.night, Kingdom.nightDeep],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -251,14 +399,14 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                     final dots =
                         '.' * ((_dotController.value * 3).floor() + 1);
                     return Column(children: [
-                      Text('対戦相手を探し中$dots',
+                      Text(t.pvpBattle_searchingOpponent(dots),
                           style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: Colors.white)),
                       const SizedBox(height: 8),
-                      const Text('ランクマッチング中...',
-                          style: TextStyle(color: Colors.white54, fontSize: 13)),
+                      Text(t.pvpBattle_rankMatching,
+                          style: const TextStyle(color: Colors.white54, fontSize: 13)),
                     ]);
                   },
                 ),
@@ -266,12 +414,12 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const _MatchStep(label: 'デッキ選択', done: true),
+                    _MatchStep(label: t.pvpBattle_stepDeckSelect, done: true),
                     _MatchLine(),
-                    const _MatchStep(
-                        label: 'マッチング', done: false, active: true),
+                    _MatchStep(
+                        label: t.pvpBattle_stepMatching, done: false, active: true),
                     _MatchLine(),
-                    const _MatchStep(label: 'バトル', done: false),
+                    _MatchStep(label: t.pvpBattle_stepBattle, done: false),
                   ],
                 ),
               ],
@@ -284,23 +432,34 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
 
   // ─── バトル画面 ───────────────────────────
   Widget _buildBattleView() {
+    final t = AppLocalizations.of(context)!;
     final bottom = MediaQuery.of(context).padding.bottom;
-    final attackerAttr = _latestLog?.attackingCard?.attribute;
+    // 開幕直後（まだログがない）は「今日のきもちカード」の属性を初期テーマにする
+    final todayEmotion = ref.watch(todayEmotionCardProvider).valueOrNull;
+    final attackerAttr = _latestLog?.attackingCard?.attribute ??
+        _emotionToAttribute(todayEmotion?.emotion);
+    final anyDanger = _myHp <= 7 || _aiHp <= 7; // 30の25%未満で危険域
 
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: AnimatedBuilder(
-        animation: Listenable.merge([_flashController, _shakeController]),
+      backgroundColor: Kingdom.nightDeep,
+      body: GestureDetector(
+        onTapDown: _onBattleTap,
+        behavior: HitTestBehavior.translucent,
+        child: AnimatedBuilder(
+        animation: Listenable.merge(
+            [_flashController, _shakeController, _pulseController]),
         builder: (context, child) {
           final shake =
               math.sin(_shakeController.value * math.pi * 8) *
                   7 *
-                  (1 - _shakeController.value);
+                  (1 - _shakeController.value) *
+                  (_isFinalTurn ? 1.6 : 1.0);
           final flashAlpha = (_flashController.value < 0.5
                   ? _flashController.value * 2
                   : (1 - _flashController.value) * 2) *
-              0.38;
+              (_isFinalTurn ? 0.6 : 0.38);
           final flashColor = _attrColor(attackerAttr);
+          final dangerPulse = (math.sin(_pulseController.value * math.pi * 2) + 1) / 2;
 
           return Transform.translate(
             offset: Offset(shake, 0),
@@ -312,7 +471,7 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                     gradient: LinearGradient(
                       colors: [
                         ..._attrBgGradient(attackerAttr),
-                        const Color(0xFF080518),
+                        Kingdom.nightDeep,
                       ],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
@@ -339,6 +498,24 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                     child: Container(
                         color: flashColor.withValues(alpha: flashAlpha)),
                   ),
+                // HP危険域ビネット（赤く明滅する画面端）
+                if (anyDanger)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: RadialGradient(
+                            colors: [
+                              Colors.transparent,
+                              Colors.red.withValues(
+                                  alpha: 0.10 + dangerPulse * 0.22),
+                            ],
+                            stops: const [0.55, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 // コンテンツ
                 Column(
                   children: [
@@ -346,32 +523,202 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                       name: _opponentName,
                       tier: _opponentTier,
                       hp: _aiHp,
+                      previousHp: _prevAiHp,
                       maxHp: 30,
                       deck: _opponentDeck!,
                       isOpponent: true,
+                      dangerPulse: dangerPulse,
                     ),
                     Expanded(child: _buildBattleStage(attackerAttr)),
                     _ArenaZone(
-                      name: '👤 あなた',
+                      name: t.pvpBattle_youLabel,
                       tier: '',
                       hp: _myHp,
+                      previousHp: _prevMyHp,
                       maxHp: 30,
                       deck: _myDeck!,
                       isOpponent: false,
                       bottomPad: bottom,
+                      dangerPulse: dangerPulse,
                     ),
                   ],
                 ),
+                // 逆転演出
+                if (_showComeback)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: _comebackController,
+                        builder: (_, child) {
+                          final progress = _comebackController.value;
+                          final scale = progress < 0.2
+                              ? (0.5 + progress * 5 * 0.7)
+                              : 1.2 - (progress - 0.2) * 0.25;
+                          final alpha = progress < 0.75 ? 1.0 : (1 - progress) * 4;
+                          return Center(
+                            child: Transform.scale(
+                              scale: scale.clamp(0.0, 1.3),
+                              child: Opacity(
+                                opacity: alpha.clamp(0.0, 1.0),
+                                child: Text(
+                                  t.pvpBattle_comebackBadge,
+                                  style: TextStyle(
+                                    fontSize: 40,
+                                    fontWeight: FontWeight.w900,
+                                    color: const Color(0xFFFFD700),
+                                    shadows: [
+                                      Shadow(
+                                          color: Colors.orange
+                                              .withValues(alpha: 0.9),
+                                          blurRadius: 30),
+                                      const Shadow(
+                                          color: Colors.black,
+                                          blurRadius: 10),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                // タップ加速エフェクト（ヒット中にタップすると弾ける）
+                if (_tapEffectPos != null)
+                  AnimatedBuilder(
+                    animation: _tapEffectController,
+                    builder: (_, child) {
+                      final t = _tapEffectController.value;
+                      if (t >= 1.0) return const SizedBox.shrink();
+                      final scale = 0.6 + t * 1.2;
+                      final alpha = (1 - t).clamp(0.0, 1.0);
+                      return Positioned(
+                        left: _tapEffectPos!.dx - 30,
+                        top: _tapEffectPos!.dy - 30,
+                        child: IgnorePointer(
+                          child: Opacity(
+                            opacity: alpha,
+                            child: Transform.scale(
+                              scale: scale,
+                              child: const SizedBox(
+                                width: 60,
+                                height: 60,
+                                child: Center(
+                                  child: Text('✨',
+                                      style: TextStyle(fontSize: 28)),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                // ヒット中のタップ促しプロンプト＋気合カウント（自動進行だけでなく参加している感覚を出す）
+                if (_flashController.isAnimating)
+                  Positioned(
+                    top: 8,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: Center(
+                        child: AnimatedOpacity(
+                          opacity: _flashController.value > 0 ? 1 : 0,
+                          duration: const Duration(milliseconds: 100),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Text(t.pvpBattle_tapPrompt,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_spiritCount > 0)
+                  Positioned(
+                    top: 8,
+                    right: 10,
+                    child: IgnorePointer(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Kingdom.gilt.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Kingdom.gilt.withValues(alpha: 0.6)),
+                        ),
+                        child: Text(t.pvpBattle_spiritCount(_spiritCount),
+                            style: const TextStyle(
+                                color: Kingdom.gilt,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ),
+                // 決着クロージング（結果画面へ飛ぶ前に勝敗をはっきり見せる一呼吸）
+                if (_showConclusion)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.0, end: 1.0),
+                        duration: const Duration(milliseconds: 450),
+                        curve: Curves.easeOut,
+                        builder: (_, t, child) => Container(
+                          color: Colors.black.withValues(alpha: 0.55 * t),
+                          child: Opacity(opacity: t, child: child),
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _result!.attackerWon ? '🏆' : '💔',
+                                style: const TextStyle(fontSize: 64),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _result!.attackerWon
+                                    ? t.pvpBattle_conclusionVictory
+                                    : t.pvpBattle_conclusionDefeat,
+                                style: TextStyle(
+                                  fontFamily: Kingdom.displayFont,
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w900,
+                                  color: _result!.attackerWon
+                                      ? Kingdom.gilt
+                                      : Kingdom.angerCrimson,
+                                  shadows: const [
+                                    Shadow(color: Colors.black87, blurRadius: 12),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           );
         },
+        ),
       ),
     );
   }
 
   // ─── バトルステージ（中央） ───────────────
   Widget _buildBattleStage(String? attackerAttr) {
+    final t = AppLocalizations.of(context)!;
     final log = _latestLog;
     final accentColor = _attrColor(attackerAttr);
 
@@ -380,14 +727,14 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
         gradient: LinearGradient(
           colors: [
             ..._attrBgGradient(attackerAttr),
-            const Color(0xFF000510),
+            Kingdom.nightDeep,
           ],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
         border: const Border(
-          top: BorderSide(color: Color(0xFFFF4444), width: 2),
-          bottom: BorderSide(color: Color(0xFF4488FF), width: 2),
+          top: BorderSide(color: Kingdom.angerCrimson, width: 2),
+          bottom: BorderSide(color: Kingdom.sadnessIndigo, width: 2),
         ),
       ),
       child: Stack(
@@ -407,11 +754,29 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
             Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               const Text('⚔️', style: TextStyle(fontSize: 56)),
               const SizedBox(height: 12),
-              const Text('バトル開始...',
-                  style: TextStyle(color: Colors.white38, fontSize: 14)),
+              Text(t.pvpBattle_battleStart,
+                  style: const TextStyle(color: Colors.white38, fontSize: 14)),
+              if (attackerAttr != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: accentColor.withValues(alpha: 0.5)),
+                  ),
+                  child: Text(
+                    '${_attrEmoji(attackerAttr)} ${t.pvpBattle_todayEmotionBanner}',
+                    style: TextStyle(
+                        fontSize: 10, color: accentColor, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
             ])
           else
-            Column(
+            // バトル演出が増えて縦幅を超える端末でも下部が見切れないようスクロール可能にする
+            SingleChildScrollView(
+              child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 // ターン + 有利バッジ
@@ -423,23 +788,36 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                           horizontal: 14, vertical: 4),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [
-                            accentColor.withValues(alpha: 0.8),
-                            accentColor
-                          ],
+                          colors: _isFinalTurn
+                              ? [
+                                  const Color(0xFFFF3355),
+                                  const Color(0xFFFF0033)
+                                ]
+                              : [
+                                  accentColor.withValues(alpha: 0.8),
+                                  accentColor
+                                ],
                         ),
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                              color: accentColor.withValues(alpha: 0.5),
-                              blurRadius: 10)
+                              color: (_isFinalTurn
+                                      ? const Color(0xFFFF0033)
+                                      : accentColor)
+                                  .withValues(alpha: 0.6),
+                              blurRadius: _isFinalTurn ? 18 : 10)
                         ],
                       ),
-                      child: Text('TURN ${log.turn}',
-                          style: const TextStyle(
+                      child: Text(
+                          _isFinalTurn
+                              ? t.pvpBattle_finalBlowBadge
+                              : t.pvpBattle_turnLabel(log.turn),
+                          style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: Colors.black)),
+                              color: _isFinalTurn
+                                  ? Colors.white
+                                  : Colors.black)),
                     ),
                     if (log.isAdvantage) ...[
                       const SizedBox(width: 8),
@@ -454,7 +832,7 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                             BoxShadow(color: Color(0x66FFD700), blurRadius: 10)
                           ],
                         ),
-                        child: const Text('✨ 属性有利!',
+                        child: Text(t.pvpBattle_attributeAdvantage,
                             style: TextStyle(
                                 fontSize: 10,
                                 color: Color(0xFFFFD700),
@@ -475,7 +853,7 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                                 blurRadius: 8)
                           ],
                         ),
-                        child: const Text('❄️ 属性不利',
+                        child: Text(t.pvpBattle_attributeDisadvantage,
                             style: TextStyle(
                                 fontSize: 10,
                                 color: Colors.blueAccent,
@@ -551,6 +929,41 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                   },
                 ),
               ],
+              ),
+            ),
+
+          // コンボカウンター（左下・2連続以上の属性有利で表示）
+          if (_comboCount >= 2)
+            Positioned(
+              bottom: 6,
+              left: 8,
+              child: TweenAnimationBuilder<double>(
+                key: ValueKey(_comboCount),
+                tween: Tween(begin: 0.6, end: 1.0),
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.elasticOut,
+                builder: (_, scale, child) =>
+                    Transform.scale(scale: scale, child: child),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFD700).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFFD700)),
+                    boxShadow: const [
+                      BoxShadow(color: Color(0x99FFD700), blurRadius: 10)
+                    ],
+                  ),
+                  child: Text(
+                    t.pvpBattle_comboCount(_comboCount),
+                    style: TextStyle(
+                        color: const Color(0xFFFFD700),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11 + (_comboCount.clamp(0, 5) * 0.8)),
+                  ),
+                ),
+              ),
             ),
 
           // ターン進捗（右下）
@@ -565,7 +978,8 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                     color: Colors.black54,
                     borderRadius: BorderRadius.circular(8)),
                 child: Text(
-                  '${_displayedLogs.length} / ${_result?.logs.length ?? '?'} ターン',
+                  t.pvpBattle_turnProgress(
+                      _displayedLogs.length, _result?.logs.length ?? '?'),
                   style:
                       const TextStyle(color: Colors.white54, fontSize: 10),
                 ),
@@ -580,6 +994,117 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 中央攻撃エフェクト
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 属性専属インパクトエフェクト CustomPainter
+// joy=放射光線 / anger=爆発衝撃波+火の粉 / sadness=氷片飛散+霜の輪
+// t: flashController.value (0→1、ヒット時に0から1へ一度だけ進む)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+class _ImpactBurstPainter extends CustomPainter {
+  final double t;
+  final String attribute;
+  _ImpactBurstPainter({required this.t, required this.attribute});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (t <= 0) return;
+    final center = Offset(size.width / 2, size.height / 2);
+    final color = _attrColor(attribute);
+
+    switch (attribute) {
+      case 'joy':
+        _paintSunburst(canvas, center, color);
+        break;
+      case 'anger':
+        _paintExplosion(canvas, center, color);
+        break;
+      case 'sadness':
+        _paintFrostShatter(canvas, center, color);
+        break;
+      default:
+        _paintSunburst(canvas, center, color);
+    }
+  }
+
+  // 喜: 中心から放射状に伸びる光線が回転しながら広がる
+  void _paintSunburst(Canvas canvas, Offset center, Color color) {
+    const rayCount = 10;
+    const maxLen = 46.0;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final fade = (1 - t).clamp(0.0, 1.0);
+    for (int i = 0; i < rayCount; i++) {
+      final angle = (i / rayCount) * math.pi * 2 + t * math.pi * 0.6;
+      final len = maxLen * t;
+      final dir = Offset(math.cos(angle), math.sin(angle));
+      paint
+        ..color = color.withValues(alpha: fade * 0.85)
+        ..strokeWidth = 3.5 * (1 - t * 0.4);
+      canvas.drawLine(center + dir * 14, center + dir * (14 + len), paint);
+    }
+  }
+
+  // 怒: ギザギザの衝撃波リング＋飛び散る火の粉
+  void _paintExplosion(Canvas canvas, Offset center, Color color) {
+    final ringRadius = 10 + 40 * t;
+    final fade = (1 - t).clamp(0.0, 1.0);
+    final path = Path();
+    const spikes = 12;
+    for (int i = 0; i <= spikes; i++) {
+      final angle = (i / spikes) * math.pi * 2;
+      final r = ringRadius * (i.isEven ? 1.0 : 0.72);
+      final p = center + Offset(math.cos(angle), math.sin(angle)) * r;
+      if (i == 0) {
+        path.moveTo(p.dx, p.dy);
+      } else {
+        path.lineTo(p.dx, p.dy);
+      }
+    }
+    path.close();
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..color = color.withValues(alpha: fade * 0.75);
+    canvas.drawPath(path, ringPaint);
+
+    final rng = math.Random(7);
+    final emberPaint = Paint()..style = PaintingStyle.fill;
+    for (int i = 0; i < 8; i++) {
+      final angle = rng.nextDouble() * math.pi * 2;
+      final dist = (10 + rng.nextDouble() * 30) * t;
+      final pos = center + Offset(math.cos(angle), math.sin(angle)) * dist;
+      emberPaint.color = color.withValues(alpha: fade * 0.7);
+      canvas.drawCircle(pos, 2.2 * (1 - t * 0.5), emberPaint);
+    }
+  }
+
+  // 哀: 氷の破片が飛び散り、霜の輪がゆっくり広がる
+  void _paintFrostShatter(Canvas canvas, Offset center, Color color) {
+    final rng = math.Random(13);
+    final fade = (1 - t).clamp(0.0, 1.0);
+    final shardPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 2.0;
+    for (int i = 0; i < 7; i++) {
+      final angle = (i / 7) * math.pi * 2 + rng.nextDouble() * 0.3;
+      final dist = 12 + 34 * t;
+      final dir = Offset(math.cos(angle), math.sin(angle));
+      shardPaint.color = color.withValues(alpha: fade * 0.8);
+      canvas.drawLine(center + dir * (dist * 0.4), center + dir * dist, shardPaint);
+    }
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..color = color.withValues(alpha: fade * 0.4);
+    canvas.drawCircle(center, 10 + 30 * t, ringPaint);
+  }
+
+  @override
+  bool shouldRepaint(_ImpactBurstPainter old) =>
+      old.t != t || old.attribute != attribute;
+}
+
 class _AttackEffectWidget extends StatelessWidget {
   final String attribute;
   final double multiplier;
@@ -602,27 +1127,45 @@ class _AttackEffectWidget extends StatelessWidget {
             animation: flashController,
             builder: (_, child) {
               final scale = 1.0 + flashController.value * 0.6;
-              return Transform.scale(
-                scale: scale,
-                child: Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color:
-                        color.withValues(alpha: 0.08 + flashController.value * 0.22),
-                    boxShadow: [
-                      BoxShadow(
-                        color: color
-                            .withValues(alpha: flashController.value * 0.9),
-                        blurRadius: 16 + flashController.value * 24,
-                        spreadRadius: flashController.value * 10,
+              return SizedBox(
+                width: 96,
+                height: 96,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // 属性専属インパクトエフェクト
+                    // （joy=放射光線 / anger=爆発衝撃波+火の粉 / sadness=氷片飛散+霜の輪）
+                    CustomPaint(
+                      size: const Size(96, 96),
+                      painter: _ImpactBurstPainter(
+                        t: flashController.value,
+                        attribute: attribute,
                       ),
-                    ],
-                  ),
-                  child: Center(
-                      child: Text(fx,
-                          style: const TextStyle(fontSize: 28))),
+                    ),
+                    Transform.scale(
+                      scale: scale,
+                      child: Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: color.withValues(
+                              alpha: 0.08 + flashController.value * 0.22),
+                          boxShadow: [
+                            BoxShadow(
+                              color: color
+                                  .withValues(alpha: flashController.value * 0.9),
+                              blurRadius: 16 + flashController.value * 24,
+                              spreadRadius: flashController.value * 10,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                            child: Text(fx,
+                                style: const TextStyle(fontSize: 28))),
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
@@ -665,6 +1208,7 @@ class _BattleCardDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final attr = card.attribute;
     final color = _attrColor(attr);
     final glow = _attrGlow(attr);
@@ -687,7 +1231,7 @@ class _BattleCardDisplay extends StatelessWidget {
             ],
           ),
           child: Text(
-            isAttacker ? '⚔ 攻撃' : '🛡 防御',
+            isAttacker ? t.pvpBattle_attackLabel : t.pvpBattle_defenseLabel,
             style: const TextStyle(
                 color: Colors.white,
                 fontSize: 9,
@@ -707,8 +1251,14 @@ class _BattleCardDisplay extends StatelessWidget {
             // 攻撃カードは前傾み、防御カードは後傾
             final angle =
                 isAttacker ? -0.10 + flashBoost * 0.08 : 0.07;
+            // 衝突ラウンジ：攻撃カードは中央へ突進、防御カードはノックバック
+            final lunge = math.sin(
+                    flashController.value.clamp(0.0, 1.0) * math.pi) *
+                (isAttacker ? 16.0 : -7.0);
 
-            return Transform.rotate(
+            return Transform.translate(
+              offset: Offset(lunge, 0),
+              child: Transform.rotate(
               angle: angle,
               child: Container(
                 width: 92,
@@ -814,6 +1364,7 @@ class _BattleCardDisplay extends StatelessWidget {
                   ],
                 ),
               ),
+              ),
             );
           },
         ),
@@ -915,33 +1466,39 @@ class _ArenaZone extends StatelessWidget {
   final String name;
   final String tier;
   final int hp;
+  final int previousHp;
   final int maxHp;
   final List<PlayCard> deck;
   final bool isOpponent;
   final double bottomPad;
+  final double dangerPulse;
 
   const _ArenaZone({
     required this.name,
     required this.tier,
     required this.hp,
+    int? previousHp,
     required this.maxHp,
     required this.deck,
     required this.isOpponent,
     this.bottomPad = 0,
-  });
+    this.dangerPulse = 0,
+  }) : previousHp = previousHp ?? hp;
 
   @override
   Widget build(BuildContext context) {
     final ratio = (hp / maxHp).clamp(0.0, 1.0);
+    final prevRatio = (previousHp / maxHp).clamp(0.0, 1.0);
+    final isDanger = ratio <= 0.25;
     final hpColor = ratio > 0.5
         ? const Color(0xFF00FF88)
         : ratio > 0.25
             ? Colors.orange
             : Colors.red;
-    final bgColor =
-        isOpponent ? const Color(0xFF2A0010) : const Color(0xFF001025);
-    final accentColor =
-        isOpponent ? const Color(0xFFFF4444) : const Color(0xFF4488FF);
+    final bgColor = isOpponent ? const Color(0xFF2A0A0A) : Kingdom.nightDeep;
+    final accentColor = isDanger
+        ? Colors.red.withValues(alpha: 0.6 + dangerPulse * 0.4)
+        : (isOpponent ? Kingdom.angerCrimson : Kingdom.sadnessIndigo);
 
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -953,12 +1510,19 @@ class _ArenaZone extends StatelessWidget {
         color: bgColor,
         border: Border(
           bottom: isOpponent
-              ? BorderSide(color: accentColor, width: 1.5)
+              ? BorderSide(color: accentColor, width: isDanger ? 2.5 : 1.5)
               : BorderSide.none,
           top: !isOpponent
-              ? BorderSide(color: accentColor, width: 1.5)
+              ? BorderSide(color: accentColor, width: isDanger ? 2.5 : 1.5)
               : BorderSide.none,
         ),
+        boxShadow: isDanger
+            ? [
+                BoxShadow(
+                    color: Colors.red.withValues(alpha: dangerPulse * 0.35),
+                    blurRadius: 14)
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1007,6 +1571,23 @@ class _ArenaZone extends StatelessWidget {
             child: Stack(
               children: [
                 Container(height: 12, color: Colors.white10),
+                // 被弾トレイル（直前HPから現在HPへゆっくり追いつく白い残像）
+                // → 一撃でどれだけ削れたかが体感的にわかる「駆け引き」演出
+                if (prevRatio > ratio)
+                  TweenAnimationBuilder<double>(
+                    key: ValueKey('hp-trail-$hp-$previousHp'),
+                    tween: Tween(begin: prevRatio, end: ratio),
+                    duration: const Duration(milliseconds: 850),
+                    curve: Curves.easeOut,
+                    builder: (_, val, _) => Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        height: 12,
+                        width: (MediaQuery.of(context).size.width - 24) * val,
+                        color: Colors.white.withValues(alpha: 0.55),
+                      ),
+                    ),
+                  ),
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeOut,

@@ -4,14 +4,25 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'firebase_options.dart';
-import 'screens/home_screen.dart';
+import 'l10n/app_localizations.dart';
+import 'providers/locale_provider.dart';
+import 'screens/home_screen_v2.dart';
 import 'screens/settings_screen.dart';
+import 'screens/shop_screen.dart';
+import 'services/purchase_service.dart';
+import 'theme/kingdom_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  try {
+    await PurchaseService.init();
+  } catch (e) {
+    // RevenueCat未設定（APIキー未発行）でも課金以外の機能は使えるようにアプリを止めない
+    debugPrint('PurchaseService init failed: $e');
+  }
   runApp(
     const ProviderScope(
       child: CardCrownApp(),
@@ -24,30 +35,19 @@ class CardCrownApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(localeProvider);
     return MaterialApp.router(
       routerConfig: _router,
       title: 'Card Crown',
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('ja'),
-        Locale('en'),
-      ],
-      locale: const Locale('ja'),
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.amber,
-          brightness: Brightness.light,
-        ),
-        appBarTheme: const AppBarTheme(
-          elevation: 0,
-          centerTitle: false,
-        ),
-      ),
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: locale,
+      theme: Kingdom.materialTheme(),
     );
   }
 }
@@ -56,11 +56,15 @@ final _router = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      builder: (context, state) => const HomeScreen(),
+      builder: (context, state) => const HomeScreenV2(),
     ),
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/shop',
+      builder: (context, state) => const ShopScreen(),
     ),
   ],
 );
