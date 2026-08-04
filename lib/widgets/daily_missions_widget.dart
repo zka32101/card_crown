@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/daily_mission.dart';
+import '../providers/auth_provider.dart';
 import '../providers/daily_mission_provider.dart';
 import '../providers/game_state_provider.dart';
 import '../l10n/app_localizations.dart';
@@ -17,6 +18,7 @@ class DailyMissionsWidget extends ConsumerWidget {
 
     final activeMissions = missions.where((m) => !m.isExpired).toList();
     final completedCount = activeMissions.where((m) => m.completed).length;
+    final canReroll = activeMissions.isNotEmpty && !activeMissions.any((m) => m.claimed);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -34,20 +36,38 @@ class DailyMissionsWidget extends ConsumerWidget {
                   color: const Color(0xFFFFD700),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFFFFD700), width: 1.0),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  '$completedCount / ${activeMissions.length}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFFFFD700),
-                    fontWeight: FontWeight.bold,
+              Row(
+                children: [
+                  if (canReroll)
+                    TextButton.icon(
+                      onPressed: () => _reroll(context, ref),
+                      icon: const Icon(Icons.refresh, size: 14, color: Color(0xFF44AAFF)),
+                      label: Text(
+                        t.dailyMissions_rerollButton(kMissionRerollGemCost),
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF44AAFF)),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFFFD700), width: 1.0),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '$completedCount / ${activeMissions.length}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFFFFD700),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
@@ -165,6 +185,26 @@ class DailyMissionsWidget extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  void _reroll(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final wallet = ref.read(walletProvider);
+    if (wallet.gemBalance < kMissionRerollGemCost) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.shop_insufficientGems), backgroundColor: const Color(0xFFFF3300)),
+      );
+      return;
+    }
+
+    final userId = ref.read(currentUserIdProvider) ?? 'user_placeholder';
+    ref.read(dailyMissionsProvider.notifier).state = generateDailyMissions(userId);
+    ref.read(walletProvider.notifier).state =
+        wallet.copyWith(gemBalance: wallet.gemBalance - kMissionRerollGemCost);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(t.dailyMissions_rerollDone)),
     );
   }
 

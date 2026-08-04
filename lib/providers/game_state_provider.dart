@@ -41,6 +41,8 @@ const int kStreakShieldGemCost = 3;
 const int kDailyBonusCapExtensionGemCost = 5;
 const int kDailyBonusCapExtensionAmount = 20;
 const int kDailyBonusCapExtensionMaxPerDay = 2;
+// 本日のミッションセットを引き直す（未クレームの進捗は失われる）
+const int kMissionRerollGemCost = 2;
 
 // JST（UTC+9）基準の「今日」を yyyy-MM-dd 文字列で返す
 // 端末のタイムゾーン設定に依存せず日次リセットの境界を揃えるため
