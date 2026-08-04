@@ -197,6 +197,9 @@ final myRatingProvider = FutureProvider<int>((ref) async {
   }
 });
 
+// カード作成1回あたりのコイン消費量
+const int kCardCreationCoinCost = 50;
+
 // ウォレット更新関数
 Future<void> updateWallet(String userId, WalletState wallet) async {
   try {

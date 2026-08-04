@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../widgets/card_widget.dart';
 import '../widgets/card_reveal_dialog.dart';
 import '../models/user_card.dart';
 import '../models/card_design_words.dart';
+import '../providers/auth_provider.dart';
+import '../providers/game_state_provider.dart';
 import '../services/functions_service.dart';
-import '../services/purchase_service.dart';
 import '../widgets/daily_quests_widget.dart';
 import '../theme/kingdom_theme.dart';
 import '../l10n/app_localizations.dart';
@@ -676,6 +678,21 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
 
   void _confirmAndPay() {
     final t = AppLocalizations.of(context)!;
+    final wallet = ref.read(walletProvider);
+    if (wallet.coinBalance < kCardCreationCoinCost) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(t.cardCreation_insufficientCoins),
+          backgroundColor: Kingdom.angerCrimson,
+          action: SnackBarAction(
+            label: t.cardCreation_goToShop,
+            textColor: Kingdom.parchment,
+            onPressed: () => context.push('/shop'),
+          ),
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -715,24 +732,18 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
   }
 
   Future<void> _processPurchase() async {
-    final result = await PurchaseService.purchaseCardCreation();
-    if (!mounted) return;
-    final t = AppLocalizations.of(context)!;
-
-    switch (result) {
-      case PurchaseResult.success:
-        _onCardCreated();
-      case PurchaseResult.cancelled:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t.cardCreation_purchaseCancelled)),
-        );
-      case PurchaseResult.noProduct:
-        _onCardCreated();
-      case PurchaseResult.error:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t.cardCreation_purchaseError), backgroundColor: Colors.red),
-        );
+    final wallet = ref.read(walletProvider);
+    if (wallet.coinBalance < kCardCreationCoinCost) {
+      // _confirmAndPay側で確認済みだが、確認ダイアログ表示中の消費と競合した場合の保険
+      return;
     }
+    final updated = wallet.copyWith(coinBalance: wallet.coinBalance - kCardCreationCoinCost);
+    ref.read(walletProvider.notifier).state = updated;
+    final userId = ref.read(currentUserIdProvider);
+    if (userId != null) {
+      updateWallet(userId, updated);
+    }
+    await _onCardCreated();
   }
 
   Future<void> _onCardCreated() async {
