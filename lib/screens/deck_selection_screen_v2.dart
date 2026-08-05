@@ -3,6 +3,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/user_card.dart';
 import '../providers/game_state_provider.dart';
 import '../widgets/card_widget.dart';
+import '../widgets/card_detail_sheet.dart';
 import '../theme/kingdom_theme.dart';
 import '../l10n/app_localizations.dart';
 
@@ -170,7 +171,8 @@ class _DeckSelectionScreenV2State extends ConsumerState<DeckSelectionScreenV2> {
               children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
-                  child: Text(t.deckSelection_cardsAvailable(filtered.length),
+                  child: Text(
+                      '${t.deckSelection_cardsAvailable(filtered.length)}　${t.deckSelection_longPressHint}',
                       style: TextStyle(fontSize: 12, color: Kingdom.parchment.withValues(alpha: 0.5))),
                 ),
                 Expanded(
@@ -186,25 +188,28 @@ class _DeckSelectionScreenV2State extends ConsumerState<DeckSelectionScreenV2> {
                     itemBuilder: (context, i) {
                       final card = filtered[i];
                       final isSelected = _selected.any((c) => c.cardId == card.cardId);
-                      return CardWidget(
-                        card: card,
-                        isSelected: isSelected,
-                        onTap: () {
-                          setState(() {
-                            if (isSelected) {
-                              _selected.removeWhere((c) => c.cardId == card.cardId);
-                            } else if (_selected.length < widget.maxCards) {
-                              _selected.add(card);
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(t.deckSelection_maxCardsReached(widget.maxCards)),
-                                  backgroundColor: Kingdom.angerCrimson,
-                                ),
-                              );
-                            }
-                          });
-                        },
+                      return GestureDetector(
+                        onLongPress: () => showCardDetailSheet(context, card),
+                        child: CardWidget(
+                          card: card,
+                          isSelected: isSelected,
+                          onTap: () {
+                            setState(() {
+                              if (isSelected) {
+                                _selected.removeWhere((c) => c.cardId == card.cardId);
+                              } else if (_selected.length < widget.maxCards) {
+                                _selected.add(card);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(t.deckSelection_maxCardsReached(widget.maxCards)),
+                                    backgroundColor: Kingdom.angerCrimson,
+                                  ),
+                                );
+                              }
+                            });
+                          },
+                        ),
                       );
                     },
                   ),

@@ -251,6 +251,12 @@ final myRatingProvider = FutureProvider<int>((ref) async {
 // カード作成1回あたりのコイン消費量
 const int kCardCreationCoinCost = 100;
 
+// カード作成: パラメータ抽選（ガチャ）関連
+const int kParamRerollCoinCost = 30; // 引き直し1回あたりのコイン消費量
+const int kParamRerollMaxCount = 3; // 1回のカード作成で引き直せる最大回数
+const double kParamBigHitChance = 0.12; // 「当たり」（予算上振れ）が出る確率
+const double kParamBigHitBonusPercent = 0.15; // 当たり時の予算上乗せ率
+
 // ウォレット更新関数
 Future<void> updateWallet(String userId, WalletState wallet) async {
   try {

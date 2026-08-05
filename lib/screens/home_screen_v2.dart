@@ -66,7 +66,12 @@ class _HomeScreenV2State extends ConsumerState<HomeScreenV2> {
     return Scaffold(
       backgroundColor: Kingdom.night,
       appBar: AppBar(
-        title: CrestTitle(title: t.home_appTitle, subtitle: t.home_appSubtitle),
+        titleSpacing: 12,
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: CrestTitle(title: t.home_appTitle, subtitle: t.home_appSubtitle),
+        ),
         elevation: 0,
         backgroundColor: Kingdom.nightDeep,
         actions: [

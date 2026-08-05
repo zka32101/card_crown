@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -33,9 +34,16 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
   bool _isGeneratingName = false;
   final _coCreatorController = TextEditingController();
 
+  // ガチャ抽選パラメータ配分
+  bool _hasRolled = false;
+  bool _isRolling = false;
+  bool _isBigHit = false;
+  int _rerollsUsed = 0;
+  final _random = Random();
+
   int get _budget => switch (_cost ?? 1) { 1 => 20, 2 => 25, 3 => 30, 4 => 35, _ => 40 };
-  int get _remaining => _budget - _attack - _defense - _speed;
-  bool get _isParamValid => _remaining == 0 && _attack > 0 && _defense > 0 && _speed > 0;
+  bool get _isParamValid => _hasRolled;
+  int get _remainingRerolls => kParamRerollMaxCount - _rerollsUsed;
 
   @override
   void dispose() {
@@ -332,6 +340,9 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
                   _attack = 0;
                   _defense = 0;
                   _speed = 0;
+                  _hasRolled = false;
+                  _isBigHit = false;
+                  _rerollsUsed = 0;
                 });
               },
               child: Container(
@@ -365,34 +376,114 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
     );
   }
 
+  // total を parts 個の1以上の整数にランダム分割する（各値がランダムに偏る）
+  List<int> _splitRandom(int total, int parts) {
+    final cuts = <int>{};
+    while (cuts.length < parts - 1) {
+      cuts.add(1 + _random.nextInt(total - 1));
+    }
+    final sorted = cuts.toList()..sort();
+    final shares = <int>[];
+    int prev = 0;
+    for (final c in sorted) {
+      shares.add(c - prev);
+      prev = c;
+    }
+    shares.add(total - prev);
+    shares.shuffle(_random);
+    return shares;
+  }
+
+  Future<void> _rollParameters({required bool isReroll}) async {
+    if (isReroll) {
+      final wallet = ref.read(walletProvider);
+      if (wallet.coinBalance < kParamRerollCoinCost || _remainingRerolls <= 0) return;
+      final updated = wallet.copyWith(coinBalance: wallet.coinBalance - kParamRerollCoinCost);
+      ref.read(walletProvider.notifier).state = updated;
+      final userId = ref.read(currentUserIdProvider);
+      if (userId != null) updateWallet(userId, updated);
+      setState(() => _rerollsUsed++);
+    }
+
+    setState(() => _isRolling = true);
+    await Future.delayed(const Duration(milliseconds: 900));
+    if (!mounted) return;
+
+    final isBigHit = _random.nextDouble() < kParamBigHitChance;
+    final total = isBigHit ? (_budget * (1 + kParamBigHitBonusPercent)).round() : _budget + _random.nextInt(5) - 2;
+    final shares = _splitRandom(max(total, 3), 3);
+
+    setState(() {
+      _attack = shares[0];
+      _defense = shares[1];
+      _speed = shares[2];
+      _isBigHit = isBigHit;
+      _hasRolled = true;
+      _isRolling = false;
+    });
+  }
+
   Widget _buildParameterStep(AppLocalizations t) {
+    final wallet = ref.watch(walletProvider);
+    final canReroll = _remainingRerolls > 0 && wallet.coinBalance >= kParamRerollCoinCost;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(t.card_selectParameters, style: Kingdom.title(size: 17)),
         const SizedBox(height: Kingdom.spaceXs),
-        Text(
-          t.cardCreation_budgetRemaining(_budget, _remaining),
-          style: TextStyle(
-            color: _remaining < 0 ? Kingdom.angerCrimson : _remaining == 0 ? Kingdom.joyGold : Kingdom.parchment.withValues(alpha: 0.6),
-            fontWeight: FontWeight.bold,
-            fontSize: Kingdom.textBody,
-          ),
-        ),
+        Text(t.cardCreation_gachaSub, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.6), fontSize: 12)),
         const SizedBox(height: Kingdom.spaceXl),
-        _buildParamSlider(t.card_attack, _attack, Kingdom.angerCrimson, (v) {
-          if (_defense + _speed + v <= _budget) setState(() => _attack = v);
-        }),
-        const SizedBox(height: Kingdom.spaceLg),
-        _buildParamSlider(t.card_defense, _defense, Kingdom.sadnessIndigo, (v) {
-          if (_attack + _speed + v <= _budget) setState(() => _defense = v);
-        }),
-        const SizedBox(height: Kingdom.spaceLg),
-        _buildParamSlider(t.card_speed, _speed, Kingdom.joyGold, (v) {
-          if (_attack + _defense + v <= _budget) setState(() => _speed = v);
-        }),
-        const SizedBox(height: Kingdom.spaceXxl),
-        if (_attack > 0 || _defense > 0 || _speed > 0) ...[
+
+        if (!_hasRolled && !_isRolling)
+          Center(
+            child: RoyalButton(
+              label: t.cardCreation_rollButton,
+              accent: Kingdom.gilt,
+              onPressed: () => _rollParameters(isReroll: false),
+            ),
+          )
+        else if (_isRolling)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: Kingdom.spaceXxl),
+              child: CircularProgressIndicator(color: Kingdom.gilt),
+            ),
+          )
+        else ...[
+          if (_isBigHit)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: Kingdom.spaceMd),
+                child: Text(t.cardCreation_bigHitLabel,
+                    style: TextStyle(
+                        color: Kingdom.gilt, fontWeight: FontWeight.w900, fontSize: 20, fontFamily: Kingdom.displayFont)),
+              ),
+            ),
+          _buildParamResultRow(t.card_attack, _attack, Kingdom.angerCrimson),
+          const SizedBox(height: Kingdom.spaceMd),
+          _buildParamResultRow(t.card_defense, _defense, Kingdom.sadnessIndigo),
+          const SizedBox(height: Kingdom.spaceMd),
+          _buildParamResultRow(t.card_speed, _speed, Kingdom.joyGold),
+          const SizedBox(height: Kingdom.spaceLg),
+          if (_remainingRerolls > 0)
+            Center(
+              child: Column(
+                children: [
+                  OutlinedButton(
+                    onPressed: canReroll ? () => _rollParameters(isReroll: true) : null,
+                    child: Text(t.cardCreation_rerollButton(kParamRerollCoinCost, _remainingRerolls)),
+                  ),
+                  if (!canReroll)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(t.cardCreation_insufficientCoins,
+                          style: TextStyle(color: Kingdom.angerCrimson.withValues(alpha: 0.8), fontSize: 11)),
+                    ),
+                ],
+              ),
+            ),
+          const SizedBox(height: Kingdom.spaceXxl),
           Text(t.cardCreation_preview, style: Kingdom.label(size: Kingdom.textBody, color: Kingdom.gilt)),
           const SizedBox(height: Kingdom.spaceMd),
           Center(
@@ -416,35 +507,25 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
     );
   }
 
-  Widget _buildParamSlider(String label, int value, Color color, void Function(int) onChanged) {
-    final max = _budget;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildParamResultRow(String label, int value, Color color) {
+    return Row(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: Kingdom.label(size: Kingdom.textBody, color: color)),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(6)),
-              child: Text('$value', style: const TextStyle(color: Kingdom.parchment, fontWeight: FontWeight.bold, fontSize: 12)),
+        SizedBox(width: 70, child: Text(label, style: Kingdom.label(size: Kingdom.textBody, color: color))),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (value / 20).clamp(0.0, 1.0),
+              backgroundColor: Kingdom.parchment.withValues(alpha: 0.12),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+              minHeight: 10,
             ),
-          ],
+          ),
         ),
-        const SizedBox(height: 6),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            inactiveTrackColor: Kingdom.parchment.withValues(alpha: 0.12),
-          ),
-          child: Slider(
-            value: value.toDouble(),
-            min: 0,
-            max: max.toDouble(),
-            divisions: max,
-            activeColor: color,
-            onChanged: (v) => onChanged(v.round()),
-          ),
+        const SizedBox(width: Kingdom.spaceSm),
+        SizedBox(
+          width: 28,
+          child: Text('$value', textAlign: TextAlign.end, style: const TextStyle(color: Kingdom.parchment, fontWeight: FontWeight.bold)),
         ),
       ],
     );
