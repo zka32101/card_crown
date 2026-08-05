@@ -6,6 +6,29 @@ import '../providers/daily_mission_provider.dart';
 import '../providers/game_state_provider.dart';
 import '../l10n/app_localizations.dart';
 
+// ミッションの説明文は生成時(Providerの初期化時など、BuildContextを持たない場面)
+// ではなく表示時に組み立てる。type/target/requiredAttributeから毎回導出することで、
+// 保存済みのdescription文字列（日本語固定）に依存せず現在のロケールで表示できる。
+String _missionDescription(AppLocalizations t, DailyMission m) {
+  switch (m.type) {
+    case MissionType.battle:
+      return t.dailyMissions_descBattle(m.target);
+    case MissionType.win:
+      return t.dailyMissions_descWin(m.target);
+    case MissionType.attributeWin:
+      final attrLabel = switch (m.requiredAttribute) {
+        'joy' => t.attribute_joy,
+        'anger' => t.attribute_anger,
+        'sadness' => t.attribute_sadness,
+        _ => m.requiredAttribute ?? '',
+      };
+      return t.dailyMissions_descAttributeWin(attrLabel, m.target);
+    case MissionType.winStreak:
+    case MissionType.damage:
+      return m.description;
+  }
+}
+
 class DailyMissionsWidget extends ConsumerWidget {
   const DailyMissionsWidget({super.key});
 
@@ -287,7 +310,7 @@ class _MissionCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      mission.description,
+                      _missionDescription(t, mission),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,

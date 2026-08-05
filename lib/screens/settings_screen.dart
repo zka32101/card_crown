@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/locale_provider.dart';
 import '../theme/kingdom_theme.dart';
+
+const String kPrivacyPolicyUrl = 'https://sites.google.com/view/yourwishapps/privacy-policy';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -36,7 +39,7 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     _SettingsTile(
                       title: t.settings_myBonus,
-                      onTap: () => _showComingSoon(context, t.settings_bonusComingSoon),
+                      onTap: () => context.push('/bonus-detail'),
                     ),
                   ],
                 ),
@@ -48,7 +51,7 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     _SettingsTile(
                       title: t.settings_purchaseHistory,
-                      onTap: () => _showComingSoon(context, t.settings_purchaseHistoryComingSoon),
+                      onTap: () => context.push('/purchase-history'),
                     ),
                   ],
                 ),
@@ -82,19 +85,17 @@ class SettingsScreen extends ConsumerWidget {
                     _SettingsTile(
                       title: t.settings_privacyPolicy,
                       trailingIcon: Icons.open_in_new,
-                      onTap: () => _showComingSoon(context, t.settings_linkComingSoon),
+                      onTap: () => _openPrivacyPolicy(context),
                     ),
                     _divider(),
                     _SettingsTile(
                       title: t.settings_termsOfService,
-                      trailingIcon: Icons.open_in_new,
-                      onTap: () => _showComingSoon(context, t.settings_linkComingSoon),
+                      onTap: () => context.push('/terms'),
                     ),
                     _divider(),
                     _SettingsTile(
                       title: t.settings_contactUs,
-                      trailingIcon: Icons.open_in_new,
-                      onTap: () => _showComingSoon(context, t.settings_contactComingSoon),
+                      onTap: () => context.push('/contact'),
                     ),
                   ],
                 ),
@@ -108,8 +109,12 @@ class SettingsScreen extends ConsumerWidget {
 
   Widget _divider() => Divider(height: 1, color: Kingdom.parchment.withValues(alpha: 0.1));
 
-  void _showComingSoon(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  Future<void> _openPrivacyPolicy(BuildContext context) async {
+    final launched = await launchUrl(Uri.parse(kPrivacyPolicyUrl), mode: LaunchMode.externalApplication);
+    if (!launched && context.mounted) {
+      final t = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.settings_linkComingSoon)));
+    }
   }
 }
 

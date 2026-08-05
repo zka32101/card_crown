@@ -12,7 +12,6 @@ import 'ranking_screen_v3.dart';
 import 'tutorial_screen.dart';
 import 'achievements_screen.dart';
 import 'event_challenges_widget.dart';
-import '../models/battle_special_effects.dart';
 import '../services/sound_service.dart';
 import '../widgets/daily_quests_widget.dart';
 import '../widgets/daily_missions_widget.dart';
@@ -155,7 +154,7 @@ class _HomeScreenV2State extends ConsumerState<HomeScreenV2> {
                 _SectionHeader(title: t.home_todayStatusHeader),
                 const SizedBox(height: Kingdom.spaceSm),
                 GestureDetector(
-                  onTap: _showDailyReward,
+                  onTap: () => context.push('/bonus-detail'),
                   child: _BonusBannerV2(wallet: wallet),
                 ),
                 const SizedBox(height: Kingdom.spaceXxl),
@@ -181,7 +180,7 @@ class _HomeScreenV2State extends ConsumerState<HomeScreenV2> {
                 const SizedBox(height: Kingdom.spaceXxl),
 
                 // セクション2.5: イベントチャレンジ
-                EventChallengesWidget(challenges: kSampleEventChallenges),
+                const EventChallengesWidget(),
                 const SizedBox(height: Kingdom.spaceXxl),
 
                 // セクション2.75: カードマーケット

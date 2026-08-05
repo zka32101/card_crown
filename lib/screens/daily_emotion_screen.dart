@@ -105,7 +105,11 @@ class _DailyEmotionScreenState extends ConsumerState<DailyEmotionScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  t.dailyEmotion_todaysFeeling(emotion.emotionJa),
+                  t.dailyEmotion_todaysFeeling(switch (emotion.emotion) {
+                    EmotionType.joy => t.dailyEmotion_joyShort,
+                    EmotionType.anger => t.dailyEmotion_angerShort,
+                    EmotionType.sadness => t.dailyEmotion_sadnessShort,
+                  }),
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),

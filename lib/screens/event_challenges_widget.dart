@@ -2,23 +2,49 @@ import 'package:flutter/material.dart';
 import '../models/battle_special_effects.dart';
 import '../l10n/app_localizations.dart';
 
-class EventChallengesWidget extends StatelessWidget {
-  final List<EventChallenge> challenges;
+// サンプルイベントチャレンジ（多言語対応）。実データ連携までの仮チャレンジ一覧。
+List<EventChallenge> buildSampleEventChallenges(AppLocalizations t) => [
+      EventChallenge(
+        id: 'challenge_1',
+        title: t.eventChallenges_streakTitle,
+        description: t.eventChallenges_streakDesc,
+        reward: t.eventChallenges_streakReward,
+        goalValue: 5,
+        goalType: 'consecutive_wins',
+        deadline: DateTime.now().add(const Duration(days: 7)),
+      ),
+      EventChallenge(
+        id: 'challenge_2',
+        title: t.eventChallenges_attributeMasterTitle,
+        description: t.eventChallenges_attributeMasterDesc,
+        reward: t.eventChallenges_attributeMasterReward,
+        goalValue: 9,
+        goalType: 'attribute_wins',
+        deadline: DateTime.now().add(const Duration(days: 14)),
+      ),
+      EventChallenge(
+        id: 'challenge_3',
+        title: t.eventChallenges_damageTitle,
+        description: t.eventChallenges_damageDesc,
+        reward: t.eventChallenges_damageReward,
+        goalValue: 300,
+        goalType: 'damage_dealt',
+        deadline: DateTime.now().add(const Duration(days: 30)),
+      ),
+    ];
 
-  const EventChallengesWidget({
-    super.key,
-    required this.challenges,
-  });
+class EventChallengesWidget extends StatelessWidget {
+  const EventChallengesWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final challenges = buildSampleEventChallenges(t);
     final activeChallenges = challenges.where((c) => c.isActive).toList();
 
     if (activeChallenges.isEmpty) {
-      return SizedBox.shrink();
+      return const SizedBox.shrink();
     }
-
-    final t = AppLocalizations.of(context)!;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

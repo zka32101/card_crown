@@ -158,6 +158,12 @@ class PurchaseService {
     }
   }
 
+  // 購入履歴（非サブスクリプション取引一覧。RevenueCatのCustomerInfoから取得）
+  static Future<List<StoreTransaction>> getPurchaseHistory() async {
+    final info = await Purchases.getCustomerInfo();
+    return info.nonSubscriptionTransactions;
+  }
+
   // 購入復元
   static Future<bool> restorePurchases() async {
     try {

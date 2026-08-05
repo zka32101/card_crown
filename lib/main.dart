@@ -6,9 +6,13 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/locale_provider.dart';
+import 'screens/bonus_detail_screen.dart';
+import 'screens/contact_screen.dart';
 import 'screens/home_screen_v2.dart';
+import 'screens/purchase_history_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/shop_screen.dart';
+import 'screens/terms_of_service_screen.dart';
 import 'services/purchase_service.dart';
 import 'theme/kingdom_theme.dart';
 
@@ -65,6 +69,22 @@ final _router = GoRouter(
     GoRoute(
       path: '/shop',
       builder: (context, state) => const ShopScreen(),
+    ),
+    GoRoute(
+      path: '/bonus-detail',
+      builder: (context, state) => const BonusDetailScreen(),
+    ),
+    GoRoute(
+      path: '/purchase-history',
+      builder: (context, state) => const PurchaseHistoryScreen(),
+    ),
+    GoRoute(
+      path: '/terms',
+      builder: (context, state) => const TermsOfServiceScreen(),
+    ),
+    GoRoute(
+      path: '/contact',
+      builder: (context, state) => const ContactScreen(),
     ),
   ],
 );

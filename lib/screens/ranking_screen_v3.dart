@@ -134,13 +134,15 @@ class _AllTimeLeaderboard extends ConsumerWidget {
 class _WeeklyLeaderboard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final leaderboard = ref.watch(weeklyLeaderboardProvider);
     if (leaderboard == null) return const SizedBox.shrink();
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(Kingdom.spaceMd),
-          child: Text(leaderboard.weekLabel, style: Kingdom.label(size: Kingdom.textBody, color: const Color(0xFF7C9CDB))),
+          child: Text(t.rankingV3_weekLabel(leaderboard.weekNumber, leaderboard.year),
+              style: Kingdom.label(size: Kingdom.textBody, color: const Color(0xFF7C9CDB))),
         ),
         Expanded(child: _LeaderboardListView(entries: leaderboard.entries)),
       ],
@@ -151,13 +153,15 @@ class _WeeklyLeaderboard extends ConsumerWidget {
 class _MonthlyLeaderboard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final leaderboard = ref.watch(monthlyLeaderboardProvider);
     if (leaderboard == null) return const SizedBox.shrink();
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(Kingdom.spaceMd),
-          child: Text(leaderboard.monthLabel, style: Kingdom.label(size: Kingdom.textBody, color: Kingdom.angerCrimson)),
+          child: Text(t.rankingV3_monthLabel(leaderboard.year, leaderboard.month),
+              style: Kingdom.label(size: Kingdom.textBody, color: Kingdom.angerCrimson)),
         ),
         Expanded(child: _LeaderboardListView(entries: leaderboard.entries)),
       ],
@@ -172,6 +176,7 @@ class _AttributeLeaderboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final leaderboard = switch (attribute) {
       'joy' => ref.watch(joyLeaderboardProvider),
       'anger' => ref.watch(angerLeaderboardProvider),
@@ -181,12 +186,19 @@ class _AttributeLeaderboard extends ConsumerWidget {
 
     if (leaderboard == null) return const SizedBox.shrink();
 
+    final attrLabel = switch (attribute) {
+      'joy' => t.attribute_joy,
+      'anger' => t.attribute_anger,
+      'sadness' => t.attribute_sadness,
+      _ => attribute,
+    };
+
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(Kingdom.spaceMd),
           child: Text(
-            '${leaderboard.attributeEmoji} ${leaderboard.attributeLabel}',
+            '${leaderboard.attributeEmoji} ${t.rankingV3_attributeLeague(attrLabel)}',
             style: Kingdom.label(size: Kingdom.textBody, color: Kingdom.attributeColor(attribute)),
           ),
         ),

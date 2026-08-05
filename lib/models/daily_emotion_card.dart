@@ -29,12 +29,6 @@ class DailyEmotionCard {
     EmotionType.sadness => '😢',
   };
 
-  String get emotionJa => switch (emotion) {
-    EmotionType.joy => '喜',
-    EmotionType.anger => '怒',
-    EmotionType.sadness => '哀',
-  };
-
   bool get isToday {
     final now = DateTime.now();
     return createdAt.year == now.year &&

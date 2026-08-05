@@ -118,32 +118,6 @@ final kCurrentSeason = Season(
   rewardMultiplier: 2,
 );
 
-final kSampleEventChallenges = [
-  EventChallenge(
-    id: 'challenge_1',
-    title: '連勝チャレンジ',
-    description: '5連勝で限定バッジゲット',
-    reward: 'バッジ: 五連勝',
-    goalValue: 5,
-    goalType: 'consecutive_wins',
-    deadline: DateTime.now().add(const Duration(days: 7)),
-  ),
-  EventChallenge(
-    id: 'challenge_2',
-    title: '属性マスター',
-    description: '3つの属性でそれぞれ 3 勝',
-    reward: 'バッジ: 属性マスター + ¥100',
-    goalValue: 9,
-    goalType: 'attribute_wins',
-    deadline: DateTime.now().add(const Duration(days: 14)),
-  ),
-  EventChallenge(
-    id: 'challenge_3',
-    title: '与ダメージ 300 達成',
-    description: 'バトルで合計 300 以上のダメージを与える',
-    reward: 'レアカード素材',
-    goalValue: 300,
-    goalType: 'damage_dealt',
-    deadline: DateTime.now().add(const Duration(days: 30)),
-  ),
-];
+// サンプルイベントチャレンジの多言語文言は、AppLocalizations経由で解決するため
+// event_challenges_widget.dart 側の buildSampleEventChallenges(t) に定義している
+// （このモデルファイル自体はUIに依存しない純粋なデータクラス定義に留める）。

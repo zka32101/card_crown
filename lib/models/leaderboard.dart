@@ -63,13 +63,6 @@ class AttributeLeaderboard {
     required this.updatedAt,
   });
 
-  String get attributeLabel => switch (attribute) {
-    'joy' => '喜リーグ',
-    'anger' => '怒リーグ',
-    'sadness' => '哀リーグ',
-    _ => 'リーグ',
-  };
-
   String get attributeEmoji => switch (attribute) {
     'joy' => '☀️',
     'anger' => '🔥',
@@ -112,8 +105,6 @@ class WeeklyLeaderboard {
     required this.weekEnd,
   });
 
-  String get weekLabel => '第$weekNumber週 ($year)';
-
   Map<String, dynamic> toMap() => {
     'weekNumber': weekNumber,
     'year': year,
@@ -150,8 +141,6 @@ class MonthlyLeaderboard {
     required this.entries,
     required this.updatedAt,
   });
-
-  String get monthLabel => '$year年${month}月';
 
   Map<String, dynamic> toMap() => {
     'month': month,
