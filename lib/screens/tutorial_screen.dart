@@ -18,12 +18,14 @@ class _TutorialScreenState extends State<TutorialScreen> {
       title: '🎮 ${t.tutorial_page1Title}',
       description: t.tutorial_page1Description,
       icon: '🎴',
+      imageId: 'page1_welcome',
       color: Kingdom.gilt,
     ),
     _TutorialPage(
       title: '☀️ ${t.tutorial_page2Title}',
       description: t.tutorial_page2Description,
       icon: '☀️',
+      imageId: 'page2_joy',
       color: Kingdom.joyGold,
       details: [
         t.tutorial_page2Detail1,
@@ -35,6 +37,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
       title: '🔥 ${t.tutorial_page3Title}',
       description: t.tutorial_page3Description,
       icon: '🔥',
+      imageId: 'page3_anger',
       color: Kingdom.angerCrimson,
       details: [
         t.tutorial_page3Detail1,
@@ -46,6 +49,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
       title: '🌙 ${t.tutorial_page4Title}',
       description: t.tutorial_page4Description,
       icon: '🌙',
+      imageId: 'page4_sadness',
       color: Kingdom.sadnessIndigo,
       details: [
         t.tutorial_page4Detail1,
@@ -57,6 +61,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
       title: '⚔️ ${t.tutorial_page5Title}',
       description: t.tutorial_page5Description,
       icon: '⚔️',
+      imageId: 'page5_battle',
       color: Kingdom.angerCrimson,
       details: [
         t.tutorial_page5Detail1,
@@ -69,6 +74,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
       title: '🎯 ${t.tutorial_page6Title}',
       description: t.tutorial_page6Description,
       icon: '🎴',
+      imageId: 'page6_deck',
       color: Kingdom.sadnessIndigo,
       details: [
         t.tutorial_page6Detail1,
@@ -81,6 +87,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
       title: '💰 ${t.tutorial_page7Title}',
       description: t.tutorial_page7Description,
       icon: '💰',
+      imageId: 'page7_economy',
       color: Kingdom.joyGold,
       details: [
         t.tutorial_page7Detail1,
@@ -93,6 +100,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
       title: '📊 ${t.tutorial_page8Title}',
       description: t.tutorial_page8Description,
       icon: '🏆',
+      imageId: 'page8_rating',
       color: Kingdom.sadnessIndigo,
       details: [
         t.tutorial_page8Detail1,
@@ -105,6 +113,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
       title: '🚀 ${t.tutorial_page9Title}',
       description: t.tutorial_page9Description,
       icon: '🎮',
+      imageId: 'page9_start',
       color: Kingdom.gilt,
       details: [
         t.tutorial_page9Detail1,
@@ -225,6 +234,7 @@ class _TutorialPage {
   final String title;
   final String description;
   final String icon;
+  final String imageId;
   final Color color;
   final List<String> details;
 
@@ -232,9 +242,12 @@ class _TutorialPage {
     required this.title,
     required this.description,
     required this.icon,
+    required this.imageId,
     required this.color,
     this.details = const [],
   });
+
+  String get imageAsset => 'assets/tutorial/$imageId.png';
 }
 
 class _TutorialPageWidget extends StatelessWidget {
@@ -250,7 +263,16 @@ class _TutorialPageWidget extends StatelessWidget {
         children: [
           const SizedBox(height: Kingdom.spaceXxl),
           // アイコン
-          Text(page.icon, style: const TextStyle(fontSize: 80)),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Image.asset(
+              page.imageAsset,
+              width: 180,
+              height: 180,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Text(page.icon, style: const TextStyle(fontSize: 80)),
+            ),
+          ),
           const SizedBox(height: Kingdom.spaceXxl),
 
           // タイトル
