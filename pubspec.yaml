@@ -66,6 +66,17 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.4.12
   riverpod_generator: ^2.6.2
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"
+  # Androidのadaptive iconはOS側でクロップされる領域があるため、
+  # 主要モチーフ（王冠）が収まるよう背景色+フォアグラウンド画像を分けて指定する
+  adaptive_icon_background: "#120E1E"
+  adaptive_icon_foreground: "assets/icon/icon.png"
+  remove_alpha_ios: true
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
