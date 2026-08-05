@@ -74,7 +74,15 @@ class AchievementsScreen extends ConsumerWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(badge.emoji, style: const TextStyle(fontSize: 36)),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.asset(
+                              badge.imageAsset,
+                              width: 44,
+                              height: 44,
+                              errorBuilder: (_, _, _) => Text(badge.emoji, style: const TextStyle(fontSize: 36)),
+                            ),
+                          ),
                           const SizedBox(height: Kingdom.spaceSm),
                           Text(
                             badge.name,

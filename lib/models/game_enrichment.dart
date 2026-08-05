@@ -14,6 +14,9 @@ class Badge {
     required this.description,
     required this.unlockedAt,
   });
+
+  // AI生成バッジ画像（未生成のバッジはemojiにフォールバック）
+  String get imageAsset => 'assets/badges/$id.png';
 }
 
 class AchievementProgress {
