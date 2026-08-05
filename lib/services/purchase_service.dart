@@ -8,6 +8,14 @@ import 'package:flutter/services.dart';
 // 実売購入としてのcard_create Offeringは廃止した。
 const String kStarterPackOffering = 'starter_pack'; // ¥300（3枚分）
 const String kCurrencyShopOffering = 'currency_shop'; // コイン/ジェムパック各種
+const String kVipPassOffering = 'vip_pass'; // 月額サブスクリプション
+// RevenueCatダッシュボードでvip_pass商品に紐付けるEntitlement識別子。
+// サブスクは消費型パッケージと異なりEntitlement経由で有効/期限切れを判定する。
+const String kVipEntitlementId = 'vip';
+
+// スターターパック購入時に付与する額（コイン単体購入より割安なバンドル）
+const int kStarterPackCoins = 350;
+const int kStarterPackGems = 5;
 
 const String kRevenueCatApiKeyAndroid = 'YOUR_REVENUECAT_ANDROID_API_KEY';
 const String kRevenueCatApiKeyIos = 'YOUR_REVENUECAT_IOS_API_KEY';
@@ -126,6 +134,21 @@ class PurchaseService {
   // スターターパック ¥300（3枚分）
   static Future<PurchaseResult> purchaseStarterPack() =>
       _purchaseFirstPackage(kStarterPackOffering);
+
+  // VIPパス（月額サブスクリプション）
+  static Future<PurchaseResult> purchaseVipPass() =>
+      _purchaseFirstPackage(kVipPassOffering);
+
+  // VIPパスが現在有効かどうか（RevenueCatのEntitlementで判定）
+  static Future<bool> isVipActive() async {
+    try {
+      final info = await Purchases.getCustomerInfo();
+      return info.entitlements.active.containsKey(kVipEntitlementId);
+    } catch (e) {
+      debugPrint('VIP status check failed: $e');
+      return false;
+    }
+  }
 
   // コイン/ジェムパック購入（currency_shop Offering内のpackageIdで指定）
   static Future<PurchaseResult> purchaseCurrencyPackage(String packageId) async {

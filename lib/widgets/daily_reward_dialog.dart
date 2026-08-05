@@ -14,7 +14,7 @@ class DailyRewardDialog extends StatefulWidget {
   });
 
   /// 7日間の報酬テーブル
-  static const rewards = [5, 8, 12, 18, 25, 35, 50];
+  static const rewards = [3, 5, 6, 9, 12, 17, 25];
 
   static Future<void> show(BuildContext context, {required int currentDay, required void Function(int) onClaim}) {
     return showDialog(

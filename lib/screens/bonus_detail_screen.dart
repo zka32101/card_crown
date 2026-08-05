@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../providers/game_state_provider.dart';
+import '../providers/vip_provider.dart';
 import '../theme/kingdom_theme.dart';
 import '../l10n/app_localizations.dart';
 
@@ -12,9 +13,11 @@ class BonusDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
     final wallet = ref.watch(walletProvider);
-    final remainingCap = wallet.remainingDailyBonusCap;
+    final isVip = ref.watch(vipStatusProvider).valueOrNull ?? false;
+    final remainingCap = wallet.remainingDailyBonusCap(isVip: isVip);
     final totalCapToday = kDailyBonusCoinCap +
-        (wallet.dailyBonusCapExtensionsUsedToday * kDailyBonusCapExtensionAmount);
+        (wallet.dailyBonusCapExtensionsUsedToday * kDailyBonusCapExtensionAmount) +
+        (isVip ? kVipDailyBonusCapBoost : 0);
     final earnedToday = totalCapToday - remainingCap;
     final capRatio = totalCapToday == 0 ? 0.0 : (earnedToday / totalCapToday).clamp(0.0, 1.0);
 
@@ -46,7 +49,19 @@ class BonusDetailScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(t.bonusDetail_todayHeader, style: Kingdom.label(size: 13, color: Kingdom.parchment.withValues(alpha: 0.8))),
+                      Row(
+                        children: [
+                          Text(t.bonusDetail_todayHeader, style: Kingdom.label(size: 13, color: Kingdom.parchment.withValues(alpha: 0.8))),
+                          if (isVip) ...[
+                            const SizedBox(width: Kingdom.spaceSm),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(color: Kingdom.gilt, borderRadius: BorderRadius.circular(4)),
+                              child: Text('👑 VIP', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Kingdom.night)),
+                            ),
+                          ],
+                        ],
+                      ),
                       const SizedBox(height: Kingdom.spaceSm),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,

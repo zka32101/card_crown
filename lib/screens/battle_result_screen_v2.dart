@@ -9,6 +9,7 @@ import '../widgets/confetti_painter.dart';
 import '../widgets/daily_quests_widget.dart';
 import '../widgets/card_widget.dart';
 import '../providers/daily_mission_provider.dart';
+import '../providers/vip_provider.dart';
 import '../theme/kingdom_theme.dart';
 import '../l10n/app_localizations.dart';
 
@@ -55,7 +56,8 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
   // PvP勝利ボーナス（1日上限🪙20をstreakBonusと共有・実際に加算する）
   void _updatePvpBonus() {
     final w = ref.read(walletProvider);
-    final (updatedWallet, granted) = w.grantDailyBonus(1);
+    final isVip = ref.read(vipStatusProvider).valueOrNull ?? false;
+    final (updatedWallet, granted) = w.grantDailyBonus(1, isVip: isVip);
     _pvpBonusGranted = granted;
     if (granted > 0) {
       ref.read(walletProvider.notifier).state = updatedWallet;
@@ -72,10 +74,11 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
       // 新しい連勝ボーナス段階に達した分だけを付与する（前段階の額を含む値をそのまま
       // 付与すると、連勝が伸びるたびに過去の段階分まで多重に加算されてしまうバグがあった）
       final rawBonus = newTierBonus > oldTierBonus ? (newTierBonus - oldTierBonus) : 0;
-      // 1日あたりのボーナス上限（🪙20）を実際に強制する。
+      // 1日あたりのボーナス上限（🪙15、VIPは+10）を実際に強制する。
       // これが無かったため、連勝をわざと途切れさせて3連勝ボーナスを無限に稼げてしまっていた。
+      final isVip = ref.read(vipStatusProvider).valueOrNull ?? false;
       final (updatedWallet, granted) =
-          w.copyWith(winStreak: _newStreak).grantDailyBonus(rawBonus);
+          w.copyWith(winStreak: _newStreak).grantDailyBonus(rawBonus, isVip: isVip);
       _streakBonus = granted;
       ref.read(walletProvider.notifier).state = updatedWallet;
     } else if (w.streakShieldCount > 0) {
@@ -530,7 +533,8 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
 
   Widget _buildBonusInfo() {
     final t = AppLocalizations.of(context)!;
-    final remaining = ref.watch(walletProvider).remainingDailyBonusCap;
+    final isVip = ref.watch(vipStatusProvider).valueOrNull ?? false;
+    final remaining = ref.watch(walletProvider).remainingDailyBonusCap(isVip: isVip);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: OrnateFrame(

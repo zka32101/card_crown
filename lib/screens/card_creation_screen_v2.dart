@@ -8,6 +8,7 @@ import '../models/user_card.dart';
 import '../models/card_design_words.dart';
 import '../providers/auth_provider.dart';
 import '../providers/game_state_provider.dart';
+import '../providers/vip_provider.dart';
 import '../services/functions_service.dart';
 import '../widgets/daily_quests_widget.dart';
 import '../theme/kingdom_theme.dart';
@@ -42,6 +43,10 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
   final _random = Random();
 
   int get _budget => switch (_cost ?? 1) { 1 => 20, 2 => 25, 3 => 30, 4 => 35, _ => 40 };
+  // build内(Widgetツリー構築中)でのみ使用。ref.watchはbuildフェーズ外(onPressed等)から
+  // 呼ぶとエラーになるため、イベントハンドラ側では ref.read(vipStatusProvider) を直接使うこと。
+  bool get _isVipWatched => ref.watch(vipStatusProvider).valueOrNull ?? false;
+  int get _creationCostWatched => cardCreationCoinCost(isVip: _isVipWatched);
   bool get _isParamValid => _hasRolled;
   int get _remainingRerolls => kParamRerollMaxCount - _rerollsUsed;
 
@@ -664,7 +669,7 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
               const Icon(Icons.info_outline, color: Color(0xFF7C9CDB), size: 18),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(t.cardCreation_confirmCoinNotice,
+                child: Text(t.cardCreation_confirmCoinNotice(_creationCostWatched),
                     style: const TextStyle(fontSize: 12, color: Color(0xFF7C9CDB))),
               ),
             ],
@@ -706,7 +711,7 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
         );
       case 5:
         return RoyalButton(
-          label: t.cardCreation_createForCoins,
+          label: t.cardCreation_createForCoins(_creationCostWatched),
           accent: Kingdom.angerCrimson,
           onPressed: _selectedName != null ? _confirmAndPay : null,
         );
@@ -760,7 +765,9 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
   void _confirmAndPay() {
     final t = AppLocalizations.of(context)!;
     final wallet = ref.read(walletProvider);
-    if (wallet.coinBalance < kCardCreationCoinCost) {
+    final isVip = ref.read(vipStatusProvider).valueOrNull ?? false;
+    final cost = cardCreationCoinCost(isVip: isVip);
+    if (wallet.coinBalance < cost) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(t.cardCreation_insufficientCoins),
@@ -789,7 +796,7 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
             Text(t.cardCreation_quotedName(_selectedName ?? ''),
                 style: TextStyle(fontFamily: Kingdom.displayFont, fontSize: 18, fontWeight: FontWeight.bold, color: Kingdom.parchment)),
             const SizedBox(height: Kingdom.spaceSm),
-            Text(t.cardCreation_confirmBody, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.8))),
+            Text(t.cardCreation_confirmBody(cost), style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.8))),
             const SizedBox(height: Kingdom.spaceXs),
             Text(t.cardCreation_confirmNote, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.5), fontSize: 12)),
           ],
@@ -805,7 +812,7 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
               _processPurchase();
             },
             style: ElevatedButton.styleFrom(backgroundColor: Kingdom.angerCrimson, foregroundColor: Kingdom.parchment),
-            child: Text(t.cardCreation_createForCoins),
+            child: Text(t.cardCreation_createForCoins(cost)),
           ),
         ],
       ),
@@ -814,20 +821,22 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
 
   Future<void> _processPurchase() async {
     final wallet = ref.read(walletProvider);
-    if (wallet.coinBalance < kCardCreationCoinCost) {
+    final isVip = ref.read(vipStatusProvider).valueOrNull ?? false;
+    final cost = cardCreationCoinCost(isVip: isVip);
+    if (wallet.coinBalance < cost) {
       // _confirmAndPay側で確認済みだが、確認ダイアログ表示中の消費と競合した場合の保険
       return;
     }
-    final updated = wallet.copyWith(coinBalance: wallet.coinBalance - kCardCreationCoinCost);
+    final updated = wallet.copyWith(coinBalance: wallet.coinBalance - cost);
     ref.read(walletProvider.notifier).state = updated;
     final userId = ref.read(currentUserIdProvider);
     if (userId != null) {
       updateWallet(userId, updated);
     }
-    await _onCardCreated();
+    await _onCardCreated(cost);
   }
 
-  Future<void> _onCardCreated() async {
+  Future<void> _onCardCreated(int cost) async {
     final t = AppLocalizations.of(context)!;
     // 画像生成ローディング表示
     if (mounted) {
@@ -896,7 +905,7 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(t.cardCreation_cardAddedSnackbar(_selectedName ?? '')),
+        content: Text(t.cardCreation_cardAddedSnackbar(_selectedName ?? '', cost)),
         backgroundColor: Colors.green,
         duration: const Duration(seconds: 3),
       ),

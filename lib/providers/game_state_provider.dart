@@ -32,7 +32,7 @@ final selectedAttackDeckProvider = StateProvider<List<PlayCard>>((ref) => []);
 
 // 連勝/PvPボーナスの1日あたり合計獲得上限（コイン）
 // UI文言「1日上限🪙20」に対応する、実際に強制する側の定数
-const int kDailyBonusCoinCap = 20;
+const int kDailyBonusCoinCap = 15;
 
 // ジェムの使い道（機能ブースト）
 // 連勝シールド: 敗北時に1個消費して連勝数のリセットを防ぐ
@@ -119,10 +119,11 @@ class WalletState {
   // 今日のジェム購入による拡張分（他の日の値は無視する）
   int get _todayCapExtra => dailyBonusCapExtraDate == todayKeyJst() ? dailyBonusCapExtra : 0;
 
-  // 今日すでに使った分を差し引いた、残りの1日ボーナス上限（ジェム拡張分を含む）
-  int get remainingDailyBonusCap {
+  // 今日すでに使った分を差し引いた、残りの1日ボーナス上限（ジェム拡張分・VIP加算分を含む）
+  int remainingDailyBonusCap({bool isVip = false}) {
     final earnedToday = dailyBonusDate == todayKeyJst() ? dailyBonusCoinsEarned : 0;
-    final remaining = (kDailyBonusCoinCap + _todayCapExtra) - earnedToday;
+    final cap = kDailyBonusCoinCap + _todayCapExtra + (isVip ? kVipDailyBonusCapBoost : 0);
+    final remaining = cap - earnedToday;
     return remaining < 0 ? 0 : remaining;
   }
 
@@ -131,11 +132,12 @@ class WalletState {
 
   // 1日上限を考慮した上で、実際に獲得した後のウォレット状態を返す
   // 戻り値: (更新後のWalletState, 実際に加算されたコイン額)
-  (WalletState, int) grantDailyBonus(int rawAmount) {
+  (WalletState, int) grantDailyBonus(int rawAmount, {bool isVip = false}) {
     if (rawAmount <= 0) return (this, 0);
     final today = todayKeyJst();
     final earnedToday = dailyBonusDate == today ? dailyBonusCoinsEarned : 0;
-    final remaining = (kDailyBonusCoinCap + _todayCapExtra) - earnedToday;
+    final cap = kDailyBonusCoinCap + _todayCapExtra + (isVip ? kVipDailyBonusCapBoost : 0);
+    final remaining = cap - earnedToday;
     final granted = rawAmount > remaining ? (remaining < 0 ? 0 : remaining) : rawAmount;
     if (granted <= 0) return (this, 0);
     return (
@@ -250,6 +252,12 @@ final myRatingProvider = FutureProvider<int>((ref) async {
 
 // カード作成1回あたりのコイン消費量
 const int kCardCreationCoinCost = 100;
+const int kVipCardCreationCoinCost = 80; // VIPパス加入者向け割引価格
+
+// VIPパス特典
+const int kVipDailyBonusCapBoost = 10; // デイリーボーナス基本上限への上乗せ
+
+int cardCreationCoinCost({required bool isVip}) => isVip ? kVipCardCreationCoinCost : kCardCreationCoinCost;
 
 // カード作成: パラメータ抽選（ガチャ）関連
 const int kParamRerollCoinCost = 30; // 引き直し1回あたりのコイン消費量

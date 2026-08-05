@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../providers/game_state_provider.dart';
+import '../providers/vip_provider.dart';
 import '../services/purchase_service.dart';
 import '../theme/kingdom_theme.dart';
 import '../l10n/app_localizations.dart';
@@ -41,6 +42,65 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(t.shop_productComingSoon)),
         );
+      case PurchaseResult.error:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t.shop_purchaseError), backgroundColor: Colors.red),
+        );
+    }
+  }
+
+  bool _isBuyingStarterPack = false;
+  bool _isBuyingVip = false;
+
+  Future<void> _buyStarterPack() async {
+    if (_isBuyingStarterPack) return;
+    setState(() => _isBuyingStarterPack = true);
+    final result = await PurchaseService.purchaseStarterPack();
+    if (!mounted) return;
+    setState(() => _isBuyingStarterPack = false);
+
+    final t = AppLocalizations.of(context)!;
+    switch (result) {
+      case PurchaseResult.success:
+        final wallet = ref.read(walletProvider);
+        final updated = wallet.copyWith(
+          coinBalance: wallet.coinBalance + kStarterPackCoins,
+          gemBalance: wallet.gemBalance + kStarterPackGems,
+        );
+        ref.read(walletProvider.notifier).state = updated;
+        final userId = ref.read(currentUserIdProvider);
+        if (userId != null) updateWallet(userId, updated);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t.shop_receivedPackage(t.shop_purchaseHistoryStarterPack))),
+        );
+      case PurchaseResult.cancelled:
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.shop_purchaseCancelled)));
+      case PurchaseResult.noProduct:
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.shop_productComingSoon)));
+      case PurchaseResult.error:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t.shop_purchaseError), backgroundColor: Colors.red),
+        );
+    }
+  }
+
+  Future<void> _buyVipPass() async {
+    if (_isBuyingVip) return;
+    setState(() => _isBuyingVip = true);
+    final result = await PurchaseService.purchaseVipPass();
+    if (!mounted) return;
+    setState(() => _isBuyingVip = false);
+    // サブスクリプションはEntitlement経由で有効判定するため、購入直後にプロバイダを再取得する
+    ref.invalidate(vipStatusProvider);
+
+    final t = AppLocalizations.of(context)!;
+    switch (result) {
+      case PurchaseResult.success:
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.shop_vipWelcome)));
+      case PurchaseResult.cancelled:
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.shop_purchaseCancelled)));
+      case PurchaseResult.noProduct:
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.shop_productComingSoon)));
       case PurchaseResult.error:
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(t.shop_purchaseError), backgroundColor: Colors.red),
@@ -116,6 +176,8 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
   Widget build(BuildContext context) {
     final wallet = ref.watch(walletProvider);
     final t = AppLocalizations.of(context)!;
+    final vipAsync = ref.watch(vipStatusProvider);
+    final isVip = vipAsync.valueOrNull ?? false;
 
     return Scaffold(
       backgroundColor: Kingdom.night,
@@ -153,6 +215,25 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
                   ),
                 ),
                 const SizedBox(height: Kingdom.spaceXxl),
+
+                // VIPパス
+                Text(t.shop_vipHeader, style: Kingdom.label(size: 15, color: Kingdom.gilt)),
+                const SizedBox(height: Kingdom.spaceMd),
+                _VipPassTile(
+                  isVip: isVip,
+                  isProcessing: _isBuyingVip,
+                  onTap: _buyVipPass,
+                ),
+                const SizedBox(height: Kingdom.spaceXl),
+
+                // スターターパック
+                Text(t.shop_starterPackHeader, style: Kingdom.label(size: 15, color: Kingdom.gilt)),
+                const SizedBox(height: Kingdom.spaceMd),
+                _StarterPackTile(
+                  isProcessing: _isBuyingStarterPack,
+                  onTap: _buyStarterPack,
+                ),
+                const SizedBox(height: Kingdom.spaceXl),
 
                 Text(t.shop_coinPackagesHeader, style: Kingdom.label(size: 15, color: Kingdom.gilt)),
                 const SizedBox(height: Kingdom.spaceMd),
@@ -208,6 +289,110 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
                 ),
                 SizedBox(height: Kingdom.spaceXl + MediaQuery.of(context).padding.bottom),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VipPassTile extends StatelessWidget {
+  final bool isVip;
+  final bool isProcessing;
+  final VoidCallback onTap;
+
+  const _VipPassTile({required this.isVip, required this.isProcessing, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    return OrnateFrame(
+      accent: Kingdom.gilt,
+      gradient: const LinearGradient(
+        colors: [Color(0xFF3D2C0A), Color(0xFF5A4110)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('👑', style: TextStyle(fontSize: 28)),
+              const SizedBox(width: Kingdom.spaceMd),
+              Expanded(
+                child: Text(t.shop_vipPassLabel,
+                    style: const TextStyle(color: Kingdom.parchment, fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+              if (isVip)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: Kingdom.gilt, borderRadius: BorderRadius.circular(6)),
+                  child: Text(t.shop_vipActiveLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Kingdom.night)),
+                ),
+            ],
+          ),
+          const SizedBox(height: Kingdom.spaceSm),
+          Text(t.shop_vipBenefit1, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.8), fontSize: 12)),
+          Text(t.shop_vipBenefit2, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.8), fontSize: 12)),
+          Text(t.shop_vipBenefit3, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.8), fontSize: 12)),
+          const SizedBox(height: Kingdom.spaceMd),
+          if (!isVip)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: isProcessing ? null : onTap,
+                style: ElevatedButton.styleFrom(backgroundColor: Kingdom.gilt, foregroundColor: Kingdom.night),
+                child: isProcessing
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Kingdom.night))
+                    : Text(t.shop_vipSubscribeButton, style: const TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StarterPackTile extends StatelessWidget {
+  final bool isProcessing;
+  final VoidCallback onTap;
+
+  const _StarterPackTile({required this.isProcessing, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    return OrnateFrame(
+      accent: Kingdom.sadnessIndigo,
+      showCorners: false,
+      padding: const EdgeInsets.symmetric(horizontal: Kingdom.spaceLg, vertical: Kingdom.spaceMd),
+      child: Row(
+        children: [
+          const Text('🎁', style: TextStyle(fontSize: 28)),
+          const SizedBox(width: Kingdom.spaceMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t.shop_starterPackLabel, style: TextStyle(color: Kingdom.parchment, fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(t.shop_starterPackDesc, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.6), fontSize: 11)),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: Kingdom.minTapTarget,
+            child: ElevatedButton(
+              onPressed: isProcessing ? null : onTap,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Kingdom.sadnessIndigo,
+                foregroundColor: Kingdom.parchment,
+                minimumSize: const Size(84, Kingdom.minTapTarget),
+              ),
+              child: isProcessing
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Kingdom.parchment))
+                  : const Text('¥300', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
         ],
