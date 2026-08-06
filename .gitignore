@@ -16,3 +16,12 @@ xcuserdata/
 firebase-debug.log
 functions/lib/
 functions/node_modules/
+
+# Firebase configuration (DO NOT COMMIT)
+google-services.json
+GoogleService-Info.plist
+.firebaserc
+*.mobileprovision
+*.p8
+*.p12
+
