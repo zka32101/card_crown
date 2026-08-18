@@ -241,6 +241,7 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                   attackingCard: cardLookup[l['attackerCardId']],
                   defendingCard: cardLookup[l['defenderCardId']],
                   multiplier: (l['multiplier'] as num).toDouble(),
+                  isCritical: l['isCritical'] as bool? ?? false,
                 ))
             .toList(),
       );
@@ -277,17 +278,18 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
 
       playSound(SoundEffect.hit);
       HapticFeedback.mediumImpact();
-      if (log.isAdvantage || isFinalTurn) {
+      if (log.isAdvantage || log.isCritical || isFinalTurn) {
         HapticFeedback.heavyImpact();
       }
 
-      // 決着ターンは演出をゆっくり・大きく
+      // 決着ターン・クリティカルヒットは演出をゆっくり・大きく
+      final isBigHit = isFinalTurn || log.isCritical;
       _flashController.duration =
-          Duration(milliseconds: isFinalTurn ? 700 : 380);
+          Duration(milliseconds: isBigHit ? 700 : 380);
       _damageController.duration =
-          Duration(milliseconds: isFinalTurn ? 1300 : 750);
+          Duration(milliseconds: isBigHit ? 1300 : 750);
       _shakeController.duration =
-          Duration(milliseconds: isFinalTurn ? 600 : 350);
+          Duration(milliseconds: isBigHit ? 600 : 350);
       _flashController.forward(from: 0);
       _damageController.forward(from: 0);
       _shakeController.forward(from: 0);
@@ -868,6 +870,26 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                             style: TextStyle(
                                 fontSize: 10,
                                 color: Colors.blueAccent,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                    if (log.isCritical) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF3300).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFFF3300)),
+                          boxShadow: const [
+                            BoxShadow(color: Color(0x66FF3300), blurRadius: 12)
+                          ],
+                        ),
+                        child: Text(t.pvpBattle_criticalBadge,
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: Color(0xFFFF3300),
                                 fontWeight: FontWeight.bold)),
                       ),
                     ],

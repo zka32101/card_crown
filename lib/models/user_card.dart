@@ -1,5 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// カード育成（特訓）システム
+// レベルはcopyWith可能な進捗値としてFirestoreに保存し、実数値への反映は
+// 表示・対戦の両方で必ずこの関数を通す（クライアント/サーバーで計算式を揃えるため、
+// functions/src配下にも同じ定数・式を複製している）。
+const int kMaxCardLevel = 5;
+const int kCardLevelAttackBonus = 2;
+const int kCardLevelDefenseBonus = 2;
+const int kCardLevelSpeedBonus = 1;
+
+// currentLevel（0〜4）から次のレベルへ特訓するのに必要なコイン数
+int cardLevelUpCost(int currentLevel) => 50 * (currentLevel + 1);
+
 class UserCard {
   final String cardId;
   final String userId;
@@ -21,6 +33,10 @@ class UserCard {
   // 共同創作: もう一人のクリエイター（null = 単独創作）
   final String? coCreatorId;
   final String? coCreatorName;
+  // 特訓レベル（0〜kMaxCardLevel）。実際のバトル用ステータスは
+  // attackPower/defensePower/speed（作成時の基礎値）にレベルボーナスを
+  // 加算したもの — leveledAttackPower等を使うこと。
+  final int level;
 
   UserCard({
     required this.cardId,
@@ -42,11 +58,16 @@ class UserCard {
     required this.createdAt,
     this.coCreatorId,
     this.coCreatorName,
+    this.level = 0,
   });
 
   String get nameJp => cardName['jp'] ?? '';
   String get nameEn => cardName['en'] ?? '';
   bool get isCoCreated => coCreatorId != null && coCreatorId!.isNotEmpty;
+
+  int get leveledAttackPower => attackPower + level * kCardLevelAttackBonus;
+  int get leveledDefensePower => defensePower + level * kCardLevelDefenseBonus;
+  int get leveledSpeed => speed + level * kCardLevelSpeedBonus;
 
   String getCardType() {
     final params = [attackPower, defensePower, speed];
@@ -79,6 +100,7 @@ class UserCard {
     'createdAt': createdAt,
     'coCreatorId': coCreatorId,
     'coCreatorName': coCreatorName,
+    'level': level,
   };
 
   factory UserCard.fromMap(Map<String, dynamic> map) => UserCard(
@@ -101,6 +123,7 @@ class UserCard {
     createdAt: map['createdAt'] ?? Timestamp.now(),
     coCreatorId: map['coCreatorId'],
     coCreatorName: map['coCreatorName'],
+    level: map['level'] ?? 0,
   );
 
   UserCard copyWith({
@@ -111,6 +134,7 @@ class UserCard {
     int? bonusPointsEarned,
     int? totalVictoriesWithCard,
     int? todayVictoriesCount,
+    int? level,
   }) {
     return UserCard(
       cardId: cardId,
@@ -132,8 +156,25 @@ class UserCard {
       createdAt: createdAt,
       coCreatorId: coCreatorId,
       coCreatorName: coCreatorName,
+      level: level ?? this.level,
     );
   }
+
+  // バトル・表示で扱う統一形式(PlayCard)へ変換する。レベルボーナスを織り込んだ
+  // 実数値をそのままPlayCard.attackPower等に反映する。
+  PlayCard toPlayCard() => PlayCard(
+        cardId: cardId,
+        attribute: attribute,
+        cost: cost,
+        attackPower: leveledAttackPower,
+        defensePower: leveledDefensePower,
+        speed: leveledSpeed,
+        nameJp: nameJp,
+        imageUrl: imageUrl,
+        isSeedCard: false,
+        coCreatorName: coCreatorName,
+        level: level,
+      );
 }
 
 // カードレアリティ
@@ -152,6 +193,9 @@ class PlayCard {
   final bool isSeedCard;
   // 共同創作: もう一人のクリエイター名（null = 単独創作）
   final String? coCreatorName;
+  // 特訓レベル（シードカードは常に0。attackPower等には既にレベルボーナスが
+  // 織り込み済みで、この値は表示専用）
+  final int level;
 
   PlayCard({
     required this.cardId,
@@ -164,6 +208,7 @@ class PlayCard {
     this.imageUrl = '',
     this.isSeedCard = true,
     this.coCreatorName,
+    this.level = 0,
   });
 
   bool get isCoCreated => coCreatorName != null && coCreatorName!.isNotEmpty;

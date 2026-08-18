@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/user_card.dart';
-import '../providers/game_state_provider.dart';
+import '../providers/collection_provider.dart';
 import '../widgets/card_widget.dart';
 import '../widgets/card_detail_sheet.dart';
 import '../theme/kingdom_theme.dart';
@@ -34,7 +34,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> with Single
 
   @override
   Widget build(BuildContext context) {
-    final allCards = ref.watch(allPlayCardsProvider);
+    final allCards = ref.watch(myCollectionProvider);
     final t = AppLocalizations.of(context)!;
 
     return Scaffold(

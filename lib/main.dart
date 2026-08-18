@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
+import 'models/user_card.dart';
 import 'providers/auth_provider.dart';
+import 'providers/collection_provider.dart';
 import 'providers/game_state_provider.dart';
 import 'providers/locale_provider.dart';
 import 'providers/migration_provider.dart';
@@ -78,6 +80,16 @@ class CardCrownApp extends ConsumerWidget {
       if (ref.read(migrationHydratedForUidProvider) == uid) return;
       ref.read(migrationStateProvider.notifier).state = migration;
       ref.read(migrationHydratedForUidProvider.notifier).state = uid;
+    });
+
+    // 作成済みカードも同様に、ユーザーごとに1回だけFirestoreから復元する。
+    ref.listen<AsyncValue<List<UserCard>>>(userCardsFirestoreProvider, (previous, next) {
+      final cards = next.valueOrNull;
+      final uid = ref.read(currentUserIdProvider);
+      if (cards == null || uid == null) return;
+      if (ref.read(myCardsHydratedForUidProvider) == uid) return;
+      ref.read(myCardsProvider.notifier).state = cards;
+      ref.read(myCardsHydratedForUidProvider.notifier).state = uid;
     });
 
     return MaterialApp.router(

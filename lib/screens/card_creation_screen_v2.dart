@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -7,6 +8,7 @@ import '../widgets/card_reveal_dialog.dart';
 import '../models/user_card.dart';
 import '../models/card_design_words.dart';
 import '../providers/auth_provider.dart';
+import '../providers/collection_provider.dart';
 import '../providers/game_state_provider.dart';
 import '../providers/vip_provider.dart';
 import '../services/functions_service.dart';
@@ -877,8 +879,9 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
     }
 
     final coCreatorName = _coCreatorController.text.trim();
+    final newCardId = 'created_${DateTime.now().millisecondsSinceEpoch}';
     final newCard = PlayCard(
-      cardId: 'created_${DateTime.now().millisecondsSinceEpoch}',
+      cardId: newCardId,
       attribute: _attribute ?? 'joy',
       cost: _cost ?? 1,
       attackPower: _attack,
@@ -888,6 +891,27 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
       imageUrl: imageUrl,
       coCreatorName: coCreatorName.isEmpty ? null : coCreatorName,
     );
+
+    // コインを払って作ったカードなので、必ずコレクションへ保存する
+    // （以前はここで保存されず、演出だけ見せて何も残らないバグがあった）。
+    final userId = ref.read(currentUserIdProvider);
+    final userCard = UserCard(
+      cardId: newCardId,
+      userId: userId ?? '',
+      attribute: newCard.attribute,
+      cost: newCard.cost,
+      attackPower: newCard.attackPower,
+      defensePower: newCard.defensePower,
+      speed: newCard.speed,
+      cardName: {'jp': newCard.nameJp, 'en': newCard.nameJp},
+      cardDescription: const {'jp': '', 'en': ''},
+      imageUrl: newCard.imageUrl,
+      createdAt: Timestamp.now(),
+      coCreatorId: null,
+      coCreatorName: newCard.coCreatorName,
+    );
+    ref.read(myCardsProvider.notifier).state = [...ref.read(myCardsProvider), userCard];
+    if (userId != null) saveUserCard(userId, userCard);
 
     if (!mounted) return;
     await CardRevealDialog.show(context, newCard);

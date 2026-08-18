@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/user_card.dart';
+import '../providers/collection_provider.dart';
+import '../providers/game_state_provider.dart';
 import '../theme/kingdom_theme.dart';
 import '../l10n/app_localizations.dart';
 import 'card_widget.dart';
@@ -14,15 +17,30 @@ void showCardDetailSheet(BuildContext context, PlayCard card) {
   );
 }
 
-class CardDetailSheet extends StatelessWidget {
+class CardDetailSheet extends ConsumerWidget {
   final PlayCard card;
   const CardDetailSheet({super.key, required this.card});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
-    final attrColor = Kingdom.attributeColor(card.attribute);
-    final rc = rarityColor(card.rarity);
+
+    // マイカード（シードカードでない）の場合、特訓レベルは常にmyCardsProviderの
+    // 最新値を見る。呼び出し元から渡されたcardは開いた瞬間のスナップショットなので、
+    // シート内で特訓した直後もレベル・ステータス表示が追従するようにするため。
+    UserCard? liveCard;
+    if (!card.isSeedCard) {
+      final myCards = ref.watch(myCardsProvider);
+      for (final c in myCards) {
+        if (c.cardId == card.cardId) {
+          liveCard = c;
+          break;
+        }
+      }
+    }
+    final displayCard = liveCard?.toPlayCard() ?? card;
+    final attrColor = Kingdom.attributeColor(displayCard.attribute);
+    final rc = rarityColor(displayCard.rarity);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(Kingdom.spaceXl, Kingdom.spaceLg, Kingdom.spaceXl, Kingdom.spaceXxxl),
@@ -45,7 +63,7 @@ class CardDetailSheet extends StatelessWidget {
           Row(
             children: [
               // カードプレビュー
-              SizedBox(width: 120, child: CardWidget(card: card, size: 120)),
+              SizedBox(width: 120, child: CardWidget(card: displayCard, size: 120)),
               const SizedBox(width: Kingdom.spaceXl),
               // 詳細情報
               Expanded(
@@ -57,29 +75,29 @@ class CardDetailSheet extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: Kingdom.spaceSm, vertical: 3),
                           decoration: BoxDecoration(color: rc, borderRadius: BorderRadius.circular(6)),
-                          child: Text(card.rarityLabel, style: TextStyle(color: Kingdom.night, fontWeight: FontWeight.bold, fontSize: 12)),
+                          child: Text(displayCard.rarityLabel, style: TextStyle(color: Kingdom.night, fontWeight: FontWeight.bold, fontSize: 12)),
                         ),
                         const SizedBox(width: Kingdom.spaceSm),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: Kingdom.spaceSm, vertical: 3),
                           decoration: BoxDecoration(color: attrColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6), border: Border.all(color: attrColor)),
-                          child: Text(_attrLabel(t, card.attribute), style: TextStyle(color: attrColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                          child: Text(_attrLabel(t, displayCard.attribute), style: TextStyle(color: attrColor, fontWeight: FontWeight.bold, fontSize: 12)),
                         ),
                       ],
                     ),
                     const SizedBox(height: Kingdom.spaceSm),
-                    Text(card.nameJp,
+                    Text(displayCard.nameJp,
                         style: TextStyle(
                             fontFamily: Kingdom.displayFont, fontSize: 18, fontWeight: FontWeight.bold, color: Kingdom.parchment)),
                     const SizedBox(height: Kingdom.spaceXs),
-                    Text(t.collection_costTypeLine(card.cost, _typeLabel(t, card.getCardType())),
+                    Text(t.collection_costTypeLine(displayCard.cost, _typeLabel(t, displayCard.getCardType())),
                         style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.5), fontSize: 12)),
                     const SizedBox(height: 14),
-                    _statDetail(t.card_attack, card.attackPower, Kingdom.angerCrimson),
+                    _statDetail(t.card_attack, displayCard.attackPower, Kingdom.angerCrimson),
                     const SizedBox(height: 6),
-                    _statDetail(t.card_defense, card.defensePower, Kingdom.sadnessIndigo),
+                    _statDetail(t.card_defense, displayCard.defensePower, Kingdom.sadnessIndigo),
                     const SizedBox(height: 6),
-                    _statDetail(t.card_speed, card.speed, Kingdom.joyGold),
+                    _statDetail(t.card_speed, displayCard.speed, Kingdom.joyGold),
                   ],
                 ),
               ),
@@ -94,11 +112,16 @@ class CardDetailSheet extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _advantageChip(t.collection_advantageLabel, _advantage(t, card.attribute), Kingdom.joyGold),
-                _advantageChip(t.collection_disadvantageLabel, _disadvantage(t, card.attribute), Kingdom.angerCrimson),
+                _advantageChip(t.collection_advantageLabel, _advantage(t, displayCard.attribute), Kingdom.joyGold),
+                _advantageChip(t.collection_disadvantageLabel, _disadvantage(t, displayCard.attribute), Kingdom.angerCrimson),
               ],
             ),
           ),
+
+          if (liveCard != null) ...[
+            const SizedBox(height: Kingdom.spaceLg),
+            _TrainingSection(card: liveCard),
+          ],
         ],
       ),
     );
@@ -156,4 +179,82 @@ class CardDetailSheet extends StatelessWidget {
         'anger' => t.collection_weakAgainst('☀️ ${t.attribute_joy}'),
         _ => t.collection_weakAgainst('🔥 ${t.attribute_anger}'),
       };
+}
+
+// マイカード限定の特訓（レベルアップ）UI。コインを払って恒久的にステータスを底上げする。
+class _TrainingSection extends ConsumerWidget {
+  final UserCard card;
+  const _TrainingSection({required this.card});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final wallet = ref.watch(walletProvider);
+    final isMaxed = card.level >= kMaxCardLevel;
+    final cost = isMaxed ? 0 : cardLevelUpCost(card.level);
+    final canAfford = !isMaxed && wallet.coinBalance >= cost;
+
+    return OrnateFrame(
+      accent: Kingdom.gilt,
+      padding: const EdgeInsets.all(Kingdom.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('💪 ${t.collection_trainingLabel}', style: Kingdom.label(size: 13, color: Kingdom.gilt)),
+              const Spacer(),
+              Text(t.collection_trainingLevelFormat(card.level, kMaxCardLevel),
+                  style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.8), fontWeight: FontWeight.bold, fontSize: 13)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: List.generate(kMaxCardLevel, (i) {
+              final filled = i < card.level;
+              return Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(right: i == kMaxCardLevel - 1 ? 0 : 4),
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: filled ? Kingdom.gilt : Kingdom.parchment.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: Kingdom.spaceMd),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: isMaxed
+                  ? null
+                  : () {
+                      if (!canAfford) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(t.collection_trainInsufficientCoins), backgroundColor: Kingdom.angerCrimson),
+                        );
+                        return;
+                      }
+                      final newLevel = card.level + 1;
+                      final ok = levelUpCard(ref, card.cardId);
+                      if (ok) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(t.collection_trainSuccess(newLevel)), backgroundColor: Colors.green),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Kingdom.gilt,
+                foregroundColor: Kingdom.night,
+                disabledBackgroundColor: Kingdom.parchment.withValues(alpha: 0.12),
+              ),
+              child: Text(isMaxed ? t.collection_trainMaxReached : t.collection_trainButton(cost)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
