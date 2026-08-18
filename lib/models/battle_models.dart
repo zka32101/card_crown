@@ -54,6 +54,8 @@ class BattleLog {
   final PlayCard? attackingCard;
   final PlayCard? defendingCard;
   final double multiplier;
+  // クリティカルヒット（属性相性とは別に、確率で追加ダメージが乗る）
+  final bool isCritical;
 
   BattleLog({
     required this.turn,
@@ -64,6 +66,7 @@ class BattleLog {
     this.attackingCard,
     this.defendingCard,
     this.multiplier = 1.0,
+    this.isCritical = false,
   });
 
   bool get isAdvantage => multiplier > 1.0;

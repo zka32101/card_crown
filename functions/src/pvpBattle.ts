@@ -24,19 +24,46 @@ interface CardInput {
   speed: number;
 }
 
-// クライアントからのcardId列を、SEED_CARDSの実数値に解決する。
-// 未知のcardId（改造クライアントによる捏造、またはまだサーバー側に存在しない
-// カスタムカード）が1枚でも含まれていたら拒否する。
-function resolveDeck(cardIds: string[]): CardInput[] {
-  return cardIds.map((cardId) => {
+// カード育成（特訓）のレベルボーナス。lib/models/user_card.dart の
+// kCardLevelAttackBonus/kCardLevelDefenseBonus/kCardLevelSpeedBonus と同じ値。
+const CARD_LEVEL_ATTACK_BONUS = 2;
+const CARD_LEVEL_DEFENSE_BONUS = 2;
+const CARD_LEVEL_SPEED_BONUS = 1;
+
+// シードカード以外（cardIdがSEED_CARDSに無い場合）は、ownerUidが所有する
+// マイカードとしてFirestoreから正本データを引く。他人のカードIDを騙って
+// 使うことはできない（常に呼び出し元本人のコレクションだけを見る）。
+async function resolveCustomCard(ownerUid: string, cardId: string): Promise<CardInput> {
+  const doc = await admin.firestore()
+    .collection("users").doc(ownerUid)
+    .collection("cards").doc(cardId)
+    .get();
+  const data = doc.data();
+  if (!doc.exists || !data) {
+    throw new functions.https.HttpsError("invalid-argument", `未知のカードIDです: ${cardId}`);
+  }
+  const level: number = data.level ?? 0;
+  return {
+    cardId,
+    attribute: data.attribute,
+    attackPower: (data.attackPower ?? 0) + level * CARD_LEVEL_ATTACK_BONUS,
+    defensePower: (data.defensePower ?? 0) + level * CARD_LEVEL_DEFENSE_BONUS,
+    speed: (data.speed ?? 0) + level * CARD_LEVEL_SPEED_BONUS,
+  };
+}
+
+// クライアントからのcardId列を、実数値に解決する。まずSEED_CARDS（サーバー側の
+// 静的な正本データ）を見て、無ければ ownerUid が所有するカスタムカードとして
+// Firestoreを引く。いずれにも無いcardIdが1枚でもあれば拒否する。
+// ownerUid未指定（相手デッキ側）はSEED_CARDSのみを信頼する
+// —— pvpMatchが生成する相手デッキは常にシードカードのみで構成されるため。
+async function resolveDeck(cardIds: string[], ownerUid?: string): Promise<CardInput[]> {
+  return Promise.all(cardIds.map(async (cardId) => {
     const stats = SEED_CARDS[cardId];
-    if (!stats) {
-      throw new functions.https.HttpsError(
-        "invalid-argument", `未知のカードIDです: ${cardId}`
-      );
-    }
-    return {cardId, ...stats};
-  });
+    if (stats) return {cardId, ...stats};
+    if (ownerUid) return resolveCustomCard(ownerUid, cardId);
+    throw new functions.https.HttpsError("invalid-argument", `未知のカードIDです: ${cardId}`);
+  }));
 }
 
 // 週番号の算出（lib/providers/migration_provider.dart の _isoWeekNumber と同じ式）
@@ -73,6 +100,7 @@ interface BattleLogEntry {
   attackerHp: number;
   defenderHp: number;
   multiplier: number;
+  isCritical: boolean;
 }
 
 function getAttributeMultiplier(attackerAttribute: string, defenderAttribute: string): number {
@@ -97,9 +125,22 @@ function effectiveMultiplier(
   return boosted ? base + MIGRATION_BONUS : base;
 }
 
-function damageFromMultiplier(attacker: CardInput, defender: CardInput, multiplier: number): number {
+// クリティカルヒット：確率で追加ダメージ倍率が乗る（属性相性とは独立）。
+// lib/services/battle_engine.dart の criticalChance/criticalMultiplier と同じ値。
+// 乱数はサーバー側（Math.random）でのみ振り、クライアントには結果のみ返す。
+const CRITICAL_CHANCE = 0.15;
+const CRITICAL_MULTIPLIER = 1.5;
+
+function rollCritical(): boolean {
+  return Math.random() < CRITICAL_CHANCE;
+}
+
+function damageFromMultiplier(
+  attacker: CardInput, defender: CardInput, multiplier: number, isCritical: boolean
+): number {
   const raw = attacker.attackPower - defender.defensePower;
-  const dmg = Math.floor(raw * multiplier);
+  const effectiveMultiplier = isCritical ? multiplier * CRITICAL_MULTIPLIER : multiplier;
+  const dmg = Math.floor(raw * effectiveMultiplier);
   return dmg < 1 ? 1 : dmg;
 }
 
@@ -124,38 +165,42 @@ function simulateBattle(
 
     if (attackerGoesFirst) {
       const m1 = effectiveMultiplier(attCard.attribute, defCard.attribute, attCardBoosted);
-      const dmg1 = damageFromMultiplier(attCard, defCard, m1);
+      const crit1 = rollCritical();
+      const dmg1 = damageFromMultiplier(attCard, defCard, m1, crit1);
       defenderHp -= dmg1;
       logs.push({
         turn: turn++, attackerCardId: attCard.cardId, defenderCardId: defCard.cardId,
-        damage: dmg1, attackerHp, defenderHp, multiplier: m1,
+        damage: dmg1, attackerHp, defenderHp, multiplier: m1, isCritical: crit1,
       });
       if (defenderHp <= 0) break;
 
       const m2 = effectiveMultiplier(defCard.attribute, attCard.attribute, false);
-      const dmg2 = damageFromMultiplier(defCard, attCard, m2);
+      const crit2 = rollCritical();
+      const dmg2 = damageFromMultiplier(defCard, attCard, m2, crit2);
       attackerHp -= dmg2;
       logs.push({
         turn: turn++, attackerCardId: defCard.cardId, defenderCardId: attCard.cardId,
-        damage: dmg2, attackerHp, defenderHp, multiplier: m2,
+        damage: dmg2, attackerHp, defenderHp, multiplier: m2, isCritical: crit2,
       });
       if (attackerHp <= 0) break;
     } else {
       const m1 = effectiveMultiplier(defCard.attribute, attCard.attribute, false);
-      const dmg1 = damageFromMultiplier(defCard, attCard, m1);
+      const crit1 = rollCritical();
+      const dmg1 = damageFromMultiplier(defCard, attCard, m1, crit1);
       attackerHp -= dmg1;
       logs.push({
         turn: turn++, attackerCardId: defCard.cardId, defenderCardId: attCard.cardId,
-        damage: dmg1, attackerHp, defenderHp, multiplier: m1,
+        damage: dmg1, attackerHp, defenderHp, multiplier: m1, isCritical: crit1,
       });
       if (attackerHp <= 0) break;
 
       const m2 = effectiveMultiplier(attCard.attribute, defCard.attribute, attCardBoosted);
-      const dmg2 = damageFromMultiplier(attCard, defCard, m2);
+      const crit2 = rollCritical();
+      const dmg2 = damageFromMultiplier(attCard, defCard, m2, crit2);
       defenderHp -= dmg2;
       logs.push({
         turn: turn++, attackerCardId: attCard.cardId, defenderCardId: defCard.cardId,
-        damage: dmg2, attackerHp, defenderHp, multiplier: m2,
+        damage: dmg2, attackerHp, defenderHp, multiplier: m2, isCritical: crit2,
       });
       if (defenderHp <= 0) break;
     }
@@ -217,8 +262,8 @@ export const pvpBattle = functions
       return match.opponentDeckCardIds as string[];
     });
 
-    const attackerDeck = resolveDeck(attackerDeckCardIds);
-    const defenderDeckSnapshot = resolveDeck(opponentDeckCardIds);
+    const attackerDeck = await resolveDeck(attackerDeckCardIds, userId);
+    const defenderDeckSnapshot = await resolveDeck(opponentDeckCardIds);
     const migratedAttribute = await resolveMigratedAttribute(userId);
 
     const result = simulateBattle(attackerDeck, defenderDeckSnapshot, migratedAttribute);

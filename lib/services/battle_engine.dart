@@ -1,11 +1,20 @@
+import 'dart:math';
 import '../models/battle_models.dart';
 import '../models/user_card.dart';
 
-// 決定論的バトルシミュレーション（乱数なし）
+// クライアント側フォールバック用のバトルシミュレーション。
+// サーバー呼び出し失敗時のみ使われるため、この乱数（クリティカル判定）は
+// functions/src/pvpBattle.ts側の同名ロジックとは独立している
+// （サーバー経由の対戦は必ずサーバー側の乱数・権威計算に置き換わる）。
 class BattleEngine {
   static const int initialHp = 30;
   // 「属性の国」移住ボーナス：移住先属性のカードで攻撃した際に加算される倍率
   static const double migrationBonus = 0.15;
+  // クリティカルヒット：確率で追加ダメージ倍率が乗る（属性相性とは独立）
+  static const double criticalChance = 0.15;
+  static const double criticalMultiplier = 1.5;
+
+  static final Random _random = Random();
 
   static BattleResult simulate(
     List<PlayCard> attackerDeck,
@@ -30,7 +39,8 @@ class BattleEngine {
         // attCard（attackerDeck側）が攻撃 → 移住ボーナス対象
         final m1 = _effectiveMultiplier(attCard.attribute, defCard.attribute,
             boosted: attCard.attribute == migratedAttribute);
-        final dmg1 = _damageFromMultiplier(attCard, defCard, m1);
+        final crit1 = _rollCritical();
+        final dmg1 = _damageFromMultiplier(attCard, defCard, m1, isCritical: crit1);
         defenderHp -= dmg1;
         logs.add(BattleLog(
           turn: turn++,
@@ -41,13 +51,15 @@ class BattleEngine {
           attackingCard: attCard,
           defendingCard: defCard,
           multiplier: m1,
+          isCritical: crit1,
         ));
 
         if (defenderHp <= 0) break;
 
         // defCard（defenderDeck側）が反撃 → 移住ボーナス対象外
         final m2 = _effectiveMultiplier(defCard.attribute, attCard.attribute, boosted: false);
-        final dmg2 = _damageFromMultiplier(defCard, attCard, m2);
+        final crit2 = _rollCritical();
+        final dmg2 = _damageFromMultiplier(defCard, attCard, m2, isCritical: crit2);
         attackerHp -= dmg2;
         logs.add(BattleLog(
           turn: turn++,
@@ -58,13 +70,15 @@ class BattleEngine {
           attackingCard: defCard,
           defendingCard: attCard,
           multiplier: m2,
+          isCritical: crit2,
         ));
 
         if (attackerHp <= 0) break;
       } else {
         // defCard（defenderDeck側）が先制 → 移住ボーナス対象外
         final m1 = _effectiveMultiplier(defCard.attribute, attCard.attribute, boosted: false);
-        final dmg1 = _damageFromMultiplier(defCard, attCard, m1);
+        final crit1 = _rollCritical();
+        final dmg1 = _damageFromMultiplier(defCard, attCard, m1, isCritical: crit1);
         attackerHp -= dmg1;
         logs.add(BattleLog(
           turn: turn++,
@@ -75,6 +89,7 @@ class BattleEngine {
           attackingCard: defCard,
           defendingCard: attCard,
           multiplier: m1,
+          isCritical: crit1,
         ));
 
         if (attackerHp <= 0) break;
@@ -82,7 +97,8 @@ class BattleEngine {
         // attCard（attackerDeck側）が反撃 → 移住ボーナス対象
         final m2 = _effectiveMultiplier(attCard.attribute, defCard.attribute,
             boosted: attCard.attribute == migratedAttribute);
-        final dmg2 = _damageFromMultiplier(attCard, defCard, m2);
+        final crit2 = _rollCritical();
+        final dmg2 = _damageFromMultiplier(attCard, defCard, m2, isCritical: crit2);
         defenderHp -= dmg2;
         logs.add(BattleLog(
           turn: turn++,
@@ -93,6 +109,7 @@ class BattleEngine {
           attackingCard: attCard,
           defendingCard: defCard,
           multiplier: m2,
+          isCritical: crit2,
         ));
 
         if (defenderHp <= 0) break;
@@ -115,9 +132,13 @@ class BattleEngine {
     return boosted ? base + migrationBonus : base;
   }
 
-  static int _damageFromMultiplier(PlayCard attacker, PlayCard defender, double multiplier) {
+  static bool _rollCritical() => _random.nextDouble() < criticalChance;
+
+  static int _damageFromMultiplier(PlayCard attacker, PlayCard defender, double multiplier,
+      {bool isCritical = false}) {
     final raw = (attacker.attackPower - defender.defensePower).toDouble();
-    final dmg = (raw * multiplier).floor();
+    final effectiveMultiplier = isCritical ? multiplier * criticalMultiplier : multiplier;
+    final dmg = (raw * effectiveMultiplier).floor();
     return dmg < 1 ? 1 : dmg; // 最低1ダメージ保証
   }
 }
