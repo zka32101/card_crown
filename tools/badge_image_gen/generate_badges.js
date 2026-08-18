@@ -17,7 +17,7 @@ const LEONARDO_MODEL_ID = process.env.LEONARDO_MODEL_ID || 'de7d3faf-762f-48e0-b
 const API_BASE = 'https://cloud.leonardo.ai/api/rest/v1';
 const OUTPUT_DIR = path.join(__dirname, 'output');
 
-// 共通の土台: 円形メダル、金/ブロンズの縁取り、Card Crownの世界観（夜空紺+金箔+羊皮紙）
+// 共通の土台: 円形メダル、金/ブロンズの縁取り、Card Rivalsの世界観（夜空紺+金箔+羊皮紙）
 const BASE_PROMPT =
   'Full-bleed circular game achievement badge/medal icon, edge-to-edge filling the canvas, ' +
   'flat bold vector game icon style, ornate gold or bronze rim, dark navy night-sky background (#120E1E), ' +
