@@ -56,6 +56,10 @@ class BattleLog {
   final double multiplier;
   // クリティカルヒット（属性相性とは別に、確率で追加ダメージが乗る）
   final bool isCritical;
+  // 防御側がspeedタイプの特性で完全回避した（damageは常に0）
+  final bool isDodged;
+  // 防御側がdefenseタイプの特性でシールドを発動し、被ダメージを軽減した
+  final bool isShielded;
 
   BattleLog({
     required this.turn,
@@ -67,6 +71,8 @@ class BattleLog {
     this.defendingCard,
     this.multiplier = 1.0,
     this.isCritical = false,
+    this.isDodged = false,
+    this.isShielded = false,
   });
 
   bool get isAdvantage => multiplier > 1.0;

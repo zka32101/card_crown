@@ -101,6 +101,19 @@ interface BattleLogEntry {
   defenderHp: number;
   multiplier: number;
   isCritical: boolean;
+  isDodged: boolean;
+  isShielded: boolean;
+}
+
+// lib/models/user_card.dart の PlayCard.getCardType() と同じ判定式。
+// カードの最も高いステータスでタイプを決める（同点で最大の場合はbalance）。
+function getCardType(card: CardInput): string {
+  const {attackPower, defensePower, speed} = card;
+  const max = Math.max(attackPower, defensePower, speed);
+  if (attackPower === max && attackPower > defensePower && attackPower > speed) return "attack";
+  if (defensePower === max && defensePower > attackPower && defensePower > speed) return "defense";
+  if (speed === max && speed > attackPower && speed > defensePower) return "speed";
+  return "balance";
 }
 
 function getAttributeMultiplier(attackerAttribute: string, defenderAttribute: string): number {
@@ -131,17 +144,36 @@ function effectiveMultiplier(
 const CRITICAL_CHANCE = 0.15;
 const CRITICAL_MULTIPLIER = 1.5;
 
-function rollCritical(): boolean {
-  return Math.random() < CRITICAL_CHANCE;
+// カードタイプ特性。lib/services/battle_engine.dart の同名定数と同じ値。
+const TYPE_CRITICAL_BONUS = 0.10; // attackタイプで攻撃時、クリティカル率に加算
+const SHIELD_CHANCE = 0.20; // defenseタイプで防御時、シールド発動確率
+const SHIELD_DAMAGE_REDUCTION = 0.5;
+const DODGE_CHANCE = 0.15; // speedタイプで防御時、完全回避確率
+
+interface AttackResolution {
+  damage: number;
+  isCritical: boolean;
+  isDodged: boolean;
+  isShielded: boolean;
 }
 
-function damageFromMultiplier(
-  attacker: CardInput, defender: CardInput, multiplier: number, isCritical: boolean
-): number {
+// 1回の攻撃を解決する：防御側の回避→シールド判定 → 攻撃側のクリティカル判定 →
+// 最終ダメージ算出、の順で処理する（lib/services/battle_engine.dart の
+// _resolveAttack と同じ手順・同じ確率）。
+function resolveAttack(attacker: CardInput, defender: CardInput, multiplier: number): AttackResolution {
+  if (getCardType(defender) === "speed" && Math.random() < DODGE_CHANCE) {
+    return {damage: 0, isCritical: false, isDodged: true, isShielded: false};
+  }
+  const isShielded = getCardType(defender) === "defense" && Math.random() < SHIELD_CHANCE;
+  const critChance = getCardType(attacker) === "attack" ? CRITICAL_CHANCE + TYPE_CRITICAL_BONUS : CRITICAL_CHANCE;
+  const isCritical = Math.random() < critChance;
+
   const raw = attacker.attackPower - defender.defensePower;
-  const effectiveMultiplier = isCritical ? multiplier * CRITICAL_MULTIPLIER : multiplier;
+  let effectiveMultiplier = multiplier;
+  if (isCritical) effectiveMultiplier *= CRITICAL_MULTIPLIER;
+  if (isShielded) effectiveMultiplier *= SHIELD_DAMAGE_REDUCTION;
   const dmg = Math.floor(raw * effectiveMultiplier);
-  return dmg < 1 ? 1 : dmg;
+  return {damage: dmg < 1 ? 1 : dmg, isCritical, isDodged: false, isShielded};
 }
 
 function simulateBattle(
@@ -165,42 +197,42 @@ function simulateBattle(
 
     if (attackerGoesFirst) {
       const m1 = effectiveMultiplier(attCard.attribute, defCard.attribute, attCardBoosted);
-      const crit1 = rollCritical();
-      const dmg1 = damageFromMultiplier(attCard, defCard, m1, crit1);
-      defenderHp -= dmg1;
+      const r1 = resolveAttack(attCard, defCard, m1);
+      defenderHp -= r1.damage;
       logs.push({
         turn: turn++, attackerCardId: attCard.cardId, defenderCardId: defCard.cardId,
-        damage: dmg1, attackerHp, defenderHp, multiplier: m1, isCritical: crit1,
+        damage: r1.damage, attackerHp, defenderHp, multiplier: m1,
+        isCritical: r1.isCritical, isDodged: r1.isDodged, isShielded: r1.isShielded,
       });
       if (defenderHp <= 0) break;
 
       const m2 = effectiveMultiplier(defCard.attribute, attCard.attribute, false);
-      const crit2 = rollCritical();
-      const dmg2 = damageFromMultiplier(defCard, attCard, m2, crit2);
-      attackerHp -= dmg2;
+      const r2 = resolveAttack(defCard, attCard, m2);
+      attackerHp -= r2.damage;
       logs.push({
         turn: turn++, attackerCardId: defCard.cardId, defenderCardId: attCard.cardId,
-        damage: dmg2, attackerHp, defenderHp, multiplier: m2, isCritical: crit2,
+        damage: r2.damage, attackerHp, defenderHp, multiplier: m2,
+        isCritical: r2.isCritical, isDodged: r2.isDodged, isShielded: r2.isShielded,
       });
       if (attackerHp <= 0) break;
     } else {
       const m1 = effectiveMultiplier(defCard.attribute, attCard.attribute, false);
-      const crit1 = rollCritical();
-      const dmg1 = damageFromMultiplier(defCard, attCard, m1, crit1);
-      attackerHp -= dmg1;
+      const r1 = resolveAttack(defCard, attCard, m1);
+      attackerHp -= r1.damage;
       logs.push({
         turn: turn++, attackerCardId: defCard.cardId, defenderCardId: attCard.cardId,
-        damage: dmg1, attackerHp, defenderHp, multiplier: m1, isCritical: crit1,
+        damage: r1.damage, attackerHp, defenderHp, multiplier: m1,
+        isCritical: r1.isCritical, isDodged: r1.isDodged, isShielded: r1.isShielded,
       });
       if (attackerHp <= 0) break;
 
       const m2 = effectiveMultiplier(attCard.attribute, defCard.attribute, attCardBoosted);
-      const crit2 = rollCritical();
-      const dmg2 = damageFromMultiplier(attCard, defCard, m2, crit2);
-      defenderHp -= dmg2;
+      const r2 = resolveAttack(attCard, defCard, m2);
+      defenderHp -= r2.damage;
       logs.push({
         turn: turn++, attackerCardId: attCard.cardId, defenderCardId: defCard.cardId,
-        damage: dmg2, attackerHp, defenderHp, multiplier: m2, isCritical: crit2,
+        damage: r2.damage, attackerHp, defenderHp, multiplier: m2,
+        isCritical: r2.isCritical, isDodged: r2.isDodged, isShielded: r2.isShielded,
       });
       if (defenderHp <= 0) break;
     }

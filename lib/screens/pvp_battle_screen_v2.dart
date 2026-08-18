@@ -242,6 +242,8 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                   defendingCard: cardLookup[l['defenderCardId']],
                   multiplier: (l['multiplier'] as num).toDouble(),
                   isCritical: l['isCritical'] as bool? ?? false,
+                  isDodged: l['isDodged'] as bool? ?? false,
+                  isShielded: l['isShielded'] as bool? ?? false,
                 ))
             .toList(),
       );
@@ -893,6 +895,43 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                                 fontWeight: FontWeight.bold)),
                       ),
                     ],
+                    if (log.isShielded) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF7C9CDB).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFF7C9CDB)),
+                          boxShadow: const [
+                            BoxShadow(color: Color(0x667C9CDB), blurRadius: 10)
+                          ],
+                        ),
+                        child: Text(t.pvpBattle_shieldBadge,
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: Color(0xFF7C9CDB),
+                                fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                    if (log.isDodged) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Kingdom.parchment.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Kingdom.parchment.withValues(alpha: 0.6)),
+                        ),
+                        child: Text(t.pvpBattle_dodgeBadge,
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: Kingdom.parchment,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -941,11 +980,17 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                         child: Opacity(
                           opacity: alpha.clamp(0.0, 1.0),
                           child: Text(
-                            '${_attrFx(log.attackingCard?.attribute)} -${log.damage}',
+                            log.isDodged
+                                // このスコープのtは_damageController.value(double)で
+                                // 既に予約されているため、AppLocalizationsを明示参照する
+                                ? AppLocalizations.of(context)!.pvpBattle_missLabel
+                                : '${_attrFx(log.attackingCard?.attribute)} -${log.damage}',
                             style: TextStyle(
                               fontSize: 42,
                               fontWeight: FontWeight.w900,
-                              color: _attrColor(log.attackingCard?.attribute),
+                              color: log.isDodged
+                                  ? Kingdom.parchment.withValues(alpha: 0.7)
+                                  : _attrColor(log.attackingCard?.attribute),
                               shadows: [
                                 Shadow(
                                     color: _attrGlow(
