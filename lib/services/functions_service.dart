@@ -60,21 +60,19 @@ class FunctionsService {
   }
 
   // PvPバトル実行（サーバーサイド・改ざん防止のため結果はサーバーで再計算される）
+  // カードの実数値・対戦相手デッキ・属性移住ボーナスは全てサーバー側の正本データから
+  // 解決されるため、ここではcardIdとpvpMatchが発行したmatchIdのみを送る。
   static Future<Map<String, dynamic>> pvpBattle({
-    required List<Map<String, dynamic>> attackerDeck,
-    required List<Map<String, dynamic>> defenderDeckSnapshot,
-    required String defenderUid,
-    String? migratedAttribute,
+    required String matchId,
+    required List<String> attackerDeckCardIds,
   }) async {
     final callable = _functions.httpsCallable(
       'pvpBattle',
       options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
     );
     final result = await callable.call({
-      'attackerDeck': attackerDeck,
-      'defenderDeckSnapshot': defenderDeckSnapshot,
-      'defenderUid': defenderUid,
-      'migratedAttribute': ?migratedAttribute,
+      'matchId': matchId,
+      'attackerDeckCardIds': attackerDeckCardIds,
     });
     return Map<String, dynamic>.from(result.data as Map);
   }

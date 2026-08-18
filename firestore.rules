@@ -27,6 +27,11 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
+      // 属性移住状態（週替わりの属性ボーナス。移住時にコインと合わせて保存する）
+      match /migration/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
       // PvPレーティング（pvpBattle Cloud Functionのみが更新。クライアントは本人の分を読み取りのみ）
       match /rating/{document=**} {
         allow read: if request.auth != null && request.auth.uid == userId;

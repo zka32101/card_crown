@@ -202,6 +202,12 @@ class WalletState {
 // ローカル状態管理用（既存）
 final walletProvider = StateProvider<WalletState>((ref) => const WalletState());
 
+// walletProviderをFirestoreの値で初期化済みのuid（未初期化はnull）。
+// userWalletProviderがロードされるたびに毎回walletProviderへ上書きすると、
+// 対戦・課金などで直後に行ったローカルの楽観的更新を巻き戻してしまうため、
+// 「同一ユーザーにつき1回だけ」ハイドレートするためのガードに使う。
+final walletHydratedForUidProvider = StateProvider<String?>((ref) => null);
+
 // Firestore統合版：ユーザーのウォレット
 final userWalletProvider = FutureProvider<WalletState>((ref) async {
   final userId = ref.watch(currentUserIdProvider);
@@ -266,17 +272,27 @@ const double kParamBigHitChance = 0.12; // 「当たり」（予算上振れ）�
 const double kParamBigHitBonusPercent = 0.15; // 当たり時の予算上乗せ率
 
 // ウォレット更新関数
-Future<void> updateWallet(String userId, WalletState wallet) async {
-  try {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('wallet')
-        .doc('balance')
-        .set(wallet.toMap(), SetOptions(merge: true));
-  } catch (e) {
-    debugPrint('Error updating wallet: $e');
+// 一時的なネットワーク断でコイン/ジェム付与（特に課金直後）が消えてしまわないよう、
+// 数回リトライしてから諦める。呼び出し側は戻り値のbool（永続化に成功したか）を見て、
+// 課金など重要な操作では失敗時にユーザーへ警告を出すこと。
+Future<bool> updateWallet(String userId, WalletState wallet) async {
+  const maxAttempts = 3;
+  for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('wallet')
+          .doc('balance')
+          .set(wallet.toMap(), SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('Error updating wallet (attempt $attempt/$maxAttempts): $e');
+      if (attempt == maxAttempts) return false;
+      await Future.delayed(Duration(milliseconds: 300 * attempt));
+    }
   }
+  return false;
 }
 
 // 連続ログイン日数（1-7 でローテーション。本実装では Firebase で日付管理予定）

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/user_card.dart';
+import '../providers/auth_provider.dart';
 import '../providers/game_state_provider.dart';
 import '../services/battle_engine.dart';
 import '../services/sound_service.dart';
@@ -46,8 +47,13 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       playSound(widget.result.attackerWon ? SoundEffect.victory : SoundEffect.defeat);
-      _updateStreak();
-      if (widget.isPvP && widget.result.attackerWon) _updatePvpBonus();
+      // 連勝数・連勝ボーナス・連勝シールドはPvPの実績。「ノーボーナス」と明記された
+      // AI練習モードでこれを更新すると、練習勝利で無リスクにコインを稼げたり、
+      // 練習の負けでPvP用の連勝/シールドを失ったりしてしまうバグがあった。
+      if (widget.isPvP) {
+        _updateStreak();
+        if (widget.result.attackerWon) _updatePvpBonus();
+      }
       _updateQuests();
       _updateDailyMissions();
     });
@@ -61,8 +67,14 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
     _pvpBonusGranted = granted;
     if (granted > 0) {
       ref.read(walletProvider.notifier).state = updatedWallet;
+      _persistWallet(updatedWallet);
     }
     setState(() {});
+  }
+
+  void _persistWallet(WalletState wallet) {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId != null) updateWallet(userId, wallet);
   }
 
   void _updateStreak() {
@@ -81,15 +93,19 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
           w.copyWith(winStreak: _newStreak).grantDailyBonus(rawBonus, isVip: isVip);
       _streakBonus = granted;
       ref.read(walletProvider.notifier).state = updatedWallet;
+      _persistWallet(updatedWallet);
     } else if (w.streakShieldCount > 0) {
       // 連勝シールドを消費して連勝数を維持する
       _shieldUsed = true;
       _newStreak = w.winStreak;
-      ref.read(walletProvider.notifier).state =
-          w.copyWith(streakShieldCount: w.streakShieldCount - 1);
+      final updatedWallet = w.copyWith(streakShieldCount: w.streakShieldCount - 1);
+      ref.read(walletProvider.notifier).state = updatedWallet;
+      _persistWallet(updatedWallet);
     } else {
       _newStreak = 0;
-      ref.read(walletProvider.notifier).state = w.copyWith(winStreak: 0);
+      final updatedWallet = w.copyWith(winStreak: 0);
+      ref.read(walletProvider.notifier).state = updatedWallet;
+      _persistWallet(updatedWallet);
     }
     setState(() {});
   }

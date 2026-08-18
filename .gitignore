@@ -17,6 +17,10 @@ firebase-debug.log
 functions/lib/
 functions/node_modules/
 
+# flutter gen-l10n output (pubspec.yaml has `generate: true`; regenerated on `flutter pub get`)
+lib/l10n/app_localizations.dart
+lib/l10n/app_localizations_*.dart
+
 # Firebase configuration (DO NOT COMMIT)
 google-services.json
 GoogleService-Info.plist

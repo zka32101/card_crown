@@ -146,6 +146,7 @@
   "shop_purchaseCancelled": "Purchase cancelled",
   "shop_productComingSoon": "This item is not available yet",
   "shop_purchaseError": "An error occurred while processing your purchase",
+  "shop_purchaseSyncFailed": "Your purchase completed, but we couldn't save it to your account. Please keep the app open on a good connection, or reopen it shortly to confirm your balance.",
   "shop_restoreSuccess": "Your purchases have been restored",
   "shop_restoreNotFound": "No restorable purchases were found",
   "shop_title": "Shop",

@@ -30,10 +30,16 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
     final t = AppLocalizations.of(context)!;
     switch (result) {
       case PurchaseResult.success:
-        _grantCurrency(pkg);
+        final synced = await _grantCurrency(pkg);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(t.shop_receivedPackage(pkg.label))),
         );
+        if (!synced) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t.shop_purchaseSyncFailed), backgroundColor: Kingdom.angerCrimson),
+          );
+        }
       case PurchaseResult.cancelled:
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(t.shop_purchaseCancelled)),
@@ -69,10 +75,16 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
         );
         ref.read(walletProvider.notifier).state = updated;
         final userId = ref.read(currentUserIdProvider);
-        if (userId != null) updateWallet(userId, updated);
+        final synced = userId != null ? await updateWallet(userId, updated) : false;
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(t.shop_receivedPackage(t.shop_purchaseHistoryStarterPack))),
         );
+        if (!synced) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t.shop_purchaseSyncFailed), backgroundColor: Kingdom.angerCrimson),
+          );
+        }
       case PurchaseResult.cancelled:
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.shop_purchaseCancelled)));
       case PurchaseResult.noProduct:
@@ -108,7 +120,8 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
     }
   }
 
-  void _grantCurrency(CurrencyPackageDef pkg) {
+  // 戻り値: Firestoreへの永続化に成功したか（false ならUI側で警告を出す）
+  Future<bool> _grantCurrency(CurrencyPackageDef pkg) async {
     final wallet = ref.read(walletProvider);
     final updated = pkg.isGem
         ? wallet.copyWith(gemBalance: wallet.gemBalance + pkg.amount)
@@ -116,9 +129,8 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
     ref.read(walletProvider.notifier).state = updated;
 
     final userId = ref.read(currentUserIdProvider);
-    if (userId != null) {
-      updateWallet(userId, updated);
-    }
+    if (userId == null) return false;
+    return updateWallet(userId, updated);
   }
 
   void _buyStreakShield() {

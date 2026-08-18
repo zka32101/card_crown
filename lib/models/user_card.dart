@@ -192,13 +192,4 @@ class PlayCard {
     return 'balance';
   }
 
-  Map<String, dynamic> toSnapshot() => {
-    'cardId': cardId,
-    'attribute': attribute,
-    'attackPower': attackPower,
-    'defensePower': defensePower,
-    'speed': speed,
-    'imageUrl': imageUrl,
-    'cardNameJp': nameJp,
-  };
 }

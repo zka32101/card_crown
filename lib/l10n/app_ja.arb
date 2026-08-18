@@ -146,6 +146,7 @@
   "shop_purchaseCancelled": "購入をキャンセルしました",
   "shop_productComingSoon": "現在この商品は準備中です",
   "shop_purchaseError": "購入処理でエラーが発生しました",
+  "shop_purchaseSyncFailed": "購入は完了しましたが、反映の保存に失敗しました。通信環境の良い状態でアプリを開いたままお待ちいただくか、再起動してご確認ください。",
   "shop_restoreSuccess": "購入内容を復元しました",
   "shop_restoreNotFound": "復元できる購入が見つかりませんでした",
   "shop_title": "ショップ",
