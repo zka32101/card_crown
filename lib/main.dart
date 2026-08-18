@@ -42,7 +42,7 @@ class CardCrownApp extends ConsumerWidget {
     final locale = ref.watch(localeProvider);
     return MaterialApp.router(
       routerConfig: _router,
-      title: 'Card Crown',
+      title: 'Card Rivals',
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,

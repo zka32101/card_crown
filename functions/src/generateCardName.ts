@@ -39,7 +39,7 @@ export const generateCardName = functions
     const attrLabel = ATTR_LABEL[attribute] ?? "喜";
     const toneLabel = TONE_LABEL[tone] ?? TONE_LABEL.normal;
 
-    const prompt = `感情の国のカードゲーム「Card Crown」用のカード名を考えてください。
+    const prompt = `感情の国のカードゲーム「Card Rivals」用のカード名を考えてください。
 属性: ${attrLabel}（${attribute}）
 コスト: ${cost} / 攻撃力: ${attack} / 防御力: ${defense} / 素早さ: ${speed}
 トーン: ${toneLabel}

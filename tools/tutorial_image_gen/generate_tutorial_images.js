@@ -19,7 +19,7 @@ const OUTPUT_DIR = path.join(__dirname, 'output');
 
 const BASE_PROMPT =
   'Full-bleed square fantasy game illustration, edge-to-edge filling the canvas, no border, no frame, ' +
-  'flat bold vector game art style matching a card battle game called Card Crown, ' +
+  'flat bold vector game art style matching a card battle game called Card Rivals, ' +
   'dark navy night-sky background (#120E1E), gold and bronze ornate accents, ' +
   'high contrast, clean readable composition, no text, no letters, no watermark, no UI elements.';
 

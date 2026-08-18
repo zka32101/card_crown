@@ -15,7 +15,7 @@ const OUTPUT_PATH = path.join(__dirname, 'output', process.argv[2] || 'app_icon_
 
 const PROMPT = [
   'Full-bleed square app icon artwork, edge-to-edge, filling the entire canvas with no border, no frame, no margin, no rounded corners.',
-  'App icon emblem for a fantasy card battle game called "Card Crown".',
+  'App icon emblem for a fantasy card battle game called "Card Rivals".',
   'An ornate golden royal crown at the center, with exactly three glowing gemstones set into it:',
   'a bright golden-yellow amber gem on the left (joy), a deep crimson-red gem on the right (anger),',
   'and a deep indigo-blue gem at the very top point (sadness). The center gem must be golden-yellow, not purple.',
@@ -104,7 +104,7 @@ async function main() {
 
   fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
 
-  console.log('🎨 Card Crown アプリアイコンを生成します...');
+  console.log('🎨 Card Rivals アプリアイコンを生成します...');
   const url = await generateImage();
   const res = await fetch(url);
   if (!res.ok) throw new Error(`download failed: ${res.status}`);

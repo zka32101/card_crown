@@ -8,7 +8,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Card Crown'),
+        title: const Text('Card Rivals'),
         elevation: 0,
         actions: [
           IconButton(
