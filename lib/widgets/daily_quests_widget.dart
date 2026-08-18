@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import '../providers/auth_provider.dart';
 import '../providers/game_state_provider.dart';
 import '../theme/kingdom_theme.dart';
 import '../l10n/app_localizations.dart';
@@ -166,7 +167,10 @@ class _QuestRow extends ConsumerWidget {
                 ref.read(dailyQuestsProvider.notifier).state = updated;
                 // コイン付与
                 final w = ref.read(walletProvider);
-                ref.read(walletProvider.notifier).state = w.copyWith(coinBalance: w.coinBalance + quest.reward);
+                final updatedWallet = w.copyWith(coinBalance: w.coinBalance + quest.reward);
+                ref.read(walletProvider.notifier).state = updatedWallet;
+                final userId = ref.read(currentUserIdProvider);
+                if (userId != null) updateWallet(userId, updatedWallet);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(t.dailyQuests_rewardEarned(quest.reward)), duration: const Duration(seconds: 2)),
                 );

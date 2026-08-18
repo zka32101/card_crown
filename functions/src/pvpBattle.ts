@@ -1,11 +1,19 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+import {SEED_CARDS} from "./seedCards";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PvPバトル判定（サーバー権威）
 // lib/services/battle_engine.dart のロジックをそのまま移植。
 // クライアント側の計算結果を信用せず、サーバー側で同じアルゴリズムを再計算することで
 // ダメージ・勝敗の改ざんを防ぐ。レーティング更新もここで行う。
+//
+// 過去の実装は「クライアントが送ってきたattackPower/defensePower/speedをそのまま
+// 使って再計算する」ようになっており、これは改ざん防止になっていなかった
+// （改造クライアントが999/0のような数値を送れば確実に勝てた）。
+// 現在は cardId のみを受け取り、実数値は必ずSEED_CARDS（サーバー側の正本データ）
+// から引く。相手デッキも同様にクライアント申告を信用せず、pvpMatch が
+// Firestoreに保存した記録（pvpMatches/{matchId}）から復元する。
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 interface CardInput {
@@ -14,6 +22,44 @@ interface CardInput {
   attackPower: number;
   defensePower: number;
   speed: number;
+}
+
+// クライアントからのcardId列を、SEED_CARDSの実数値に解決する。
+// 未知のcardId（改造クライアントによる捏造、またはまだサーバー側に存在しない
+// カスタムカード）が1枚でも含まれていたら拒否する。
+function resolveDeck(cardIds: string[]): CardInput[] {
+  return cardIds.map((cardId) => {
+    const stats = SEED_CARDS[cardId];
+    if (!stats) {
+      throw new functions.https.HttpsError(
+        "invalid-argument", `未知のカードIDです: ${cardId}`
+      );
+    }
+    return {cardId, ...stats};
+  });
+}
+
+// 週番号の算出（lib/providers/migration_provider.dart の _isoWeekNumber と同じ式）
+function isoWeekNumber(date: Date): number {
+  const start = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const dayOfYear = Math.floor((date.getTime() - start.getTime()) / 86400000) + 1;
+  // JS Dateのgetday()は日曜=0だが、Dartのweekdayは月曜=1〜日曜=7。ここで揃える。
+  const jsWeekday = date.getUTCDay();
+  const dartWeekday = jsWeekday === 0 ? 7 : jsWeekday;
+  return Math.floor((dayOfYear - dartWeekday + 10) / 7);
+}
+
+// 呼び出し元ユーザーが実際に購入済みの属性移住ボーナスを、Firestoreの記録から取得する。
+// クライアントがmigratedAttributeを自己申告する形は廃止し、必ずサーバー側の記録を正とする。
+async function resolveMigratedAttribute(userId: string): Promise<string | undefined> {
+  const doc = await admin.firestore()
+    .collection("users").doc(userId)
+    .collection("migration").doc("state")
+    .get();
+  const data = doc.data();
+  if (!data || !data.attribute) return undefined;
+  if (data.forWeek !== isoWeekNumber(new Date())) return undefined;
+  return data.attribute as string;
 }
 
 interface BattleLogEntry {
@@ -125,11 +171,12 @@ function simulateBattle(
 }
 
 interface PvpBattleRequest {
-  attackerDeck: CardInput[];
-  defenderDeckSnapshot: CardInput[];
-  defenderUid?: string;
-  migratedAttribute?: string;
+  matchId: string;
+  attackerDeckCardIds: string[];
 }
+
+// pvpMatch記録の有効期限（この時間を過ぎたmatchIdは失効させ、古いマッチの使い回しを防ぐ）
+const MATCH_TTL_MS = 10 * 60 * 1000;
 
 export const pvpBattle = functions
   .region("asia-northeast1")
@@ -138,18 +185,46 @@ export const pvpBattle = functions
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "認証が必要です");
     }
+    const userId = context.auth.uid;
 
-    const attackerDeck = data.attackerDeck ?? [];
-    const defenderDeckSnapshot = data.defenderDeckSnapshot ?? [];
-    if (attackerDeck.length === 0 || defenderDeckSnapshot.length === 0) {
+    const attackerDeckCardIds = data.attackerDeckCardIds ?? [];
+    if (attackerDeckCardIds.length === 0 || !data.matchId) {
       throw new functions.https.HttpsError("invalid-argument", "デッキが不正です");
     }
 
-    const result = simulateBattle(attackerDeck, defenderDeckSnapshot, data.migratedAttribute);
+    // 対戦相手デッキはpvpMatchがサーバー側に保存した記録から復元する。
+    // クライアントからの自己申告は一切受け付けない（不正な弱デッキ偽装を防ぐ）。
+    // 同じmatchIdの二重使用（レーティング詐取のリプレイ）も防ぐため、
+    // トランザクションで consumed フラグを検証・更新する。
+    const matchRef = admin.firestore().collection("pvpMatches").doc(data.matchId);
+    const opponentDeckCardIds = await admin.firestore().runTransaction(async (tx) => {
+      const doc = await tx.get(matchRef);
+      if (!doc.exists) {
+        throw new functions.https.HttpsError("not-found", "対戦相手の情報が見つかりません");
+      }
+      const match = doc.data()!;
+      if (match.attackerUid !== userId) {
+        throw new functions.https.HttpsError("permission-denied", "このマッチは利用できません");
+      }
+      if (match.consumed) {
+        throw new functions.https.HttpsError("failed-precondition", "このマッチは既に使用済みです");
+      }
+      const createdAtMs: number = match.createdAt?.toMillis?.() ?? 0;
+      if (createdAtMs === 0 || Date.now() - createdAtMs > MATCH_TTL_MS) {
+        throw new functions.https.HttpsError("failed-precondition", "マッチの有効期限が切れています");
+      }
+      tx.update(matchRef, {consumed: true, consumedAt: admin.firestore.FieldValue.serverTimestamp()});
+      return match.opponentDeckCardIds as string[];
+    });
+
+    const attackerDeck = resolveDeck(attackerDeckCardIds);
+    const defenderDeckSnapshot = resolveDeck(opponentDeckCardIds);
+    const migratedAttribute = await resolveMigratedAttribute(userId);
+
+    const result = simulateBattle(attackerDeck, defenderDeckSnapshot, migratedAttribute);
 
     // レーティング更新（簡易固定幅）
     // TODO: 相手レーティング差を考慮したELO式に拡張できる
-    const userId = context.auth.uid;
     const ratingDelta = result.attackerWon ? 15 : -10;
     const ratingRef = admin.firestore()
       .collection("users").doc(userId)

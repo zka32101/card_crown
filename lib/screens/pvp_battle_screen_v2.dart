@@ -65,6 +65,10 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
   _PvpPhase _phase = _PvpPhase.deckSelect;
   List<PlayCard>? _myDeck;
   List<PlayCard>? _opponentDeck;
+  // pvpMatchがサーバーに保存した対戦相手デッキ記録のID。
+  // サーバー呼び出しに失敗した際のローカルフォールバック対戦ではnullのままとなり、
+  // その場合pvpBattleへのサーバー問い合わせ自体を行わない（後述）。
+  String? _matchId;
   String _opponentName = '';
   String _opponentTier = '';
   BattleResult? _result;
@@ -153,6 +157,7 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
 
     try {
       final match = await FunctionsService.pvpMatch(myRating);
+      _matchId = match['matchId'] as String?;
       final deckData = (match['opponentDeck'] as List).cast<Map>();
       _opponentDeck = deckData
           .map((c) => PlayCard(
@@ -169,6 +174,9 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
       _opponentTier = match['opponentTier'] as String;
     } catch (e) {
       // マッチングに失敗した場合は固定の対戦相手にフォールバックする
+      // （サーバー記録が存在しないため_matchIdはnullのまま→_runBattleはサーバー
+      //   問い合わせをスキップしてローカル計算のみで進行し、レーティングも変動しない）
+      _matchId = null;
       final allCards = ref.read(allPlayCardsProvider);
       final anger = allCards.where((c) => c.attribute == 'anger').skip(2).take(2).toList();
       final sadness = allCards.where((c) => c.attribute == 'sadness').skip(1).take(2).toList();
@@ -204,16 +212,19 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
     });
 
     // サーバー権威でバトル判定（クライアント計算の改ざん防止・レーティング更新もサーバー側で行う）
-    // 呼び出し失敗時のみクライアント側BattleEngineにフォールバックする
+    // 呼び出し失敗時、および正規のサーバーマッチが存在しない場合（_matchId未取得時）は
+    // クライアント側BattleEngineにフォールバックする（この場合レーティングは変動しない）
     try {
+      final matchId = _matchId;
+      if (matchId == null) {
+        throw StateError('No server-issued matchId; falling back to local battle');
+      }
       final cardLookup = <String, PlayCard>{
         for (final c in [..._myDeck!, ..._opponentDeck!]) c.cardId: c,
       };
       final response = await FunctionsService.pvpBattle(
-        attackerDeck: _myDeck!.map((c) => c.toSnapshot()).toList(),
-        defenderDeckSnapshot: _opponentDeck!.map((c) => c.toSnapshot()).toList(),
-        defenderUid: 'ai_opponent',
-        migratedAttribute: ref.read(activeMigrationAttributeProvider),
+        matchId: matchId,
+        attackerDeckCardIds: _myDeck!.map((c) => c.cardId).toList(),
       );
       final rawLogs = (response['logs'] as List).cast<Map>();
       _result = BattleResult(
@@ -1105,6 +1116,15 @@ class _ImpactBurstPainter extends CustomPainter {
       old.t != t || old.attribute != attribute;
 }
 
+// 属性移住ボーナス(+0.15)が乗った倍率(1.15/1.65/0.82等)も含めて正しく表示する。
+// 旧実装は基礎倍率(1.5/0.67)への完全一致でしか判定しておらず、移住ボーナス適用中は
+// 常に「×1.0」と誤表示していた。
+String _formatMultiplier(double multiplier) {
+  var s = multiplier.toStringAsFixed(2);
+  if (s.endsWith('0')) s = s.substring(0, s.length - 1);
+  return s;
+}
+
 class _AttackEffectWidget extends StatelessWidget {
   final String attribute;
   final double multiplier;
@@ -1180,7 +1200,7 @@ class _AttackEffectWidget extends StatelessWidget {
               border: Border.all(color: color.withValues(alpha: 0.6)),
             ),
             child: Text(
-              '×${multiplier == 1.5 ? "1.5" : multiplier == 0.67 ? "0.7" : "1.0"}',
+              '×${_formatMultiplier(multiplier)}',
               style: TextStyle(
                   fontSize: 11, fontWeight: FontWeight.bold, color: color),
             ),

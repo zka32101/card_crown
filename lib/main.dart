@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -5,7 +6,10 @@ import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
+import 'providers/auth_provider.dart';
+import 'providers/game_state_provider.dart';
 import 'providers/locale_provider.dart';
+import 'providers/migration_provider.dart';
 import 'screens/bonus_detail_screen.dart';
 import 'screens/contact_screen.dart';
 import 'screens/home_screen_v2.dart';
@@ -21,6 +25,19 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  try {
+    // ウォレット/カード/ランキングなど全機能がFirestoreのユーザードキュメントに
+    // 紐づくため、匿名認証ユーザーを起動時に確立しておく。これを怠ると
+    // currentUser が常にnullとなり、保存系の処理が全て無言でno-opになる。
+    if (FirebaseAuth.instance.currentUser == null) {
+      await FirebaseAuth.instance.signInAnonymously();
+    }
+  } catch (e) {
+    // 匿名認証が失敗しても（オフライン等）アプリ自体は起動を継続する。
+    // ログイン状態に依存する機能はcurrentUserIdProvider経由でnullを見て
+    // ローカルのみの動作にフォールバックする。
+    debugPrint('Anonymous sign-in failed: $e');
+  }
   try {
     await PurchaseService.init();
   } catch (e) {
@@ -40,6 +57,29 @@ class CardCrownApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(localeProvider);
+
+    // Firestoreに保存済みのウォレットを、ユーザーごとに1回だけ
+    // ローカルのwalletProviderへ反映する（未反映のままだと再起動のたびに
+    // コイン/ジェムが初期値へリセットされたように見えるバグがあった）。
+    ref.listen<AsyncValue<WalletState>>(userWalletProvider, (previous, next) {
+      final wallet = next.valueOrNull;
+      final uid = ref.read(currentUserIdProvider);
+      if (wallet == null || uid == null) return;
+      if (ref.read(walletHydratedForUidProvider) == uid) return;
+      ref.read(walletProvider.notifier).state = wallet;
+      ref.read(walletHydratedForUidProvider.notifier).state = uid;
+    });
+
+    // 属性移住状態も同様に、ユーザーごとに1回だけFirestoreから復元する。
+    ref.listen<AsyncValue<MigrationState>>(userMigrationProvider, (previous, next) {
+      final migration = next.valueOrNull;
+      final uid = ref.read(currentUserIdProvider);
+      if (migration == null || uid == null) return;
+      if (ref.read(migrationHydratedForUidProvider) == uid) return;
+      ref.read(migrationStateProvider.notifier).state = migration;
+      ref.read(migrationHydratedForUidProvider.notifier).state = uid;
+    });
+
     return MaterialApp.router(
       routerConfig: _router,
       title: 'Card Rivals',

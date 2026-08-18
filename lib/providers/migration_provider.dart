@@ -1,4 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'auth_provider.dart';
 import 'game_state_provider.dart';
 
 // 移住コスト（コイン）
@@ -24,9 +27,57 @@ class MigrationState {
   final int forWeek; // 何週目の移住か（週が変わったら無効）
 
   const MigrationState({this.attribute, this.forWeek = -1});
+
+  Map<String, dynamic> toMap() => {
+        'attribute': attribute,
+        'forWeek': forWeek,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+  factory MigrationState.fromMap(Map<String, dynamic> map) => MigrationState(
+        attribute: map['attribute'] as String?,
+        forWeek: (map['forWeek'] as int?) ?? -1,
+      );
 }
 
 final migrationStateProvider = StateProvider<MigrationState>((ref) => const MigrationState());
+
+// walletHydratedForUidProviderと同様、Firestoreからの読み込みで
+// ローカルの移住状態を上書きするのを「ユーザーごとに1回だけ」に制限するガード。
+final migrationHydratedForUidProvider = StateProvider<String?>((ref) => null);
+
+// Firestore統合版：ユーザーの属性移住状態
+final userMigrationProvider = FutureProvider<MigrationState>((ref) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return const MigrationState();
+
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('migration')
+        .doc('state')
+        .get();
+    if (!doc.exists) return const MigrationState();
+    return MigrationState.fromMap(doc.data() ?? {});
+  } catch (e) {
+    debugPrint('Error loading migration state: $e');
+    return const MigrationState();
+  }
+});
+
+Future<void> _persistMigrationState(String userId, MigrationState state) async {
+  try {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('migration')
+        .doc('state')
+        .set(state.toMap(), SetOptions(merge: true));
+  } catch (e) {
+    debugPrint('Error saving migration state: $e');
+  }
+}
 
 // 有効な移住先（週が変わっていたら null 扱い）
 final activeMigrationAttributeProvider = Provider<String?>((ref) {
@@ -44,11 +95,19 @@ bool migrateToFavoredAttribute(WidgetRef ref) {
   final favored = ref.read(weeklyFavoredAttributeProvider);
   final currentWeek = _isoWeekNumber(DateTime.now());
 
-  ref.read(walletProvider.notifier).state = wallet.copyWith(
+  final updatedWallet = wallet.copyWith(
     coinBalance: wallet.coinBalance - kMigrationCost,
   );
-  ref.read(migrationStateProvider.notifier).state =
-      MigrationState(attribute: favored, forWeek: currentWeek);
+  final newMigrationState = MigrationState(attribute: favored, forWeek: currentWeek);
+
+  ref.read(walletProvider.notifier).state = updatedWallet;
+  ref.read(migrationStateProvider.notifier).state = newMigrationState;
+
+  final userId = ref.read(currentUserIdProvider);
+  if (userId != null) {
+    updateWallet(userId, updatedWallet);
+    _persistMigrationState(userId, newMigrationState);
+  }
   return true;
 }
 

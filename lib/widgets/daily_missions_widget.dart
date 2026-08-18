@@ -221,10 +221,11 @@ class DailyMissionsWidget extends ConsumerWidget {
       return;
     }
 
-    final userId = ref.read(currentUserIdProvider) ?? 'user_placeholder';
-    ref.read(dailyMissionsProvider.notifier).state = generateDailyMissions(userId);
-    ref.read(walletProvider.notifier).state =
-        wallet.copyWith(gemBalance: wallet.gemBalance - kMissionRerollGemCost);
+    final userId = ref.read(currentUserIdProvider);
+    ref.read(dailyMissionsProvider.notifier).state = generateDailyMissions(userId ?? 'user_placeholder');
+    final updated = wallet.copyWith(gemBalance: wallet.gemBalance - kMissionRerollGemCost);
+    ref.read(walletProvider.notifier).state = updated;
+    if (userId != null) updateWallet(userId, updated);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(t.dailyMissions_rerollDone)),
@@ -246,10 +247,13 @@ class DailyMissionsWidget extends ConsumerWidget {
     }
 
     // ウォレット更新（コイン・ジェム両方を反映）
-    ref.read(walletProvider.notifier).state = wallet.copyWith(
+    final updatedWallet = wallet.copyWith(
       coinBalance: wallet.coinBalance + totalCoins,
       gemBalance: wallet.gemBalance + totalGems,
     );
+    ref.read(walletProvider.notifier).state = updatedWallet;
+    final userId = ref.read(currentUserIdProvider);
+    if (userId != null) updateWallet(userId, updatedWallet);
 
     // クレーム済みとして確定（進捗・完了状態は据え置き、再クレーム・再進行を防止）
     final claimedMissions = missions.map((m) {

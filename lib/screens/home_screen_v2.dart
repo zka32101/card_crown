@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import '../providers/auth_provider.dart';
 import '../providers/game_state_provider.dart';
 import '../widgets/card_widget.dart';
 import '../theme/kingdom_theme.dart';
@@ -51,7 +52,10 @@ class _HomeScreenV2State extends ConsumerState<HomeScreenV2> {
       currentDay: streak,
       onClaim: (coins) {
         final w = ref.read(walletProvider);
-        ref.read(walletProvider.notifier).state = w.copyWith(coinBalance: w.coinBalance + coins);
+        final updated = w.copyWith(coinBalance: w.coinBalance + coins);
+        ref.read(walletProvider.notifier).state = updated;
+        final userId = ref.read(currentUserIdProvider);
+        if (userId != null) updateWallet(userId, updated);
       },
     );
   }

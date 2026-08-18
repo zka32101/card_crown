@@ -1,4 +1,5 @@
 import * as functions from "firebase-functions";
+import * as admin from "firebase-admin";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PvPマッチング
@@ -8,6 +9,11 @@ import * as functions from "firebase-functions";
 // 将来Firestore上の実プレイヤー防衛デッキとマッチングする設計に拡張しやすくする。
 // TODO: users/{uid}/defenseDeck のようなコレクションを新設し、実プレイヤー同士の
 //       マッチングに置き換える（rating近傍のプレイヤーをクエリして対戦相手にする）。
+//
+// 生成した対戦相手デッキは pvpMatches/{matchId} にサーバー側の記録として保存し、
+// pvpBattle実行時はこのmatchIdを使って記録を再取得する。
+// クライアントが送ってくる defenderDeckSnapshot は一切信用しない
+// （改造クライアントが弱い偽の相手デッキを自己申告してくる不正を防ぐため）。
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 interface OpponentCard {
@@ -72,7 +78,18 @@ export const pvpMatch = functions
       deck.push(OPPONENT_POOL[(seed + i * 3) % OPPONENT_POOL.length]);
     }
 
+    const matchRef = await admin.firestore().collection("pvpMatches").add({
+      attackerUid: context.auth.uid,
+      opponentDeckCardIds: deck.map((c) => c.cardId),
+      opponentName,
+      opponentTier,
+      opponentRating,
+      consumed: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
     return {
+      matchId: matchRef.id,
       opponentName,
       opponentTier,
       opponentRating,
