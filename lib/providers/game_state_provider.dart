@@ -31,7 +31,7 @@ final defenseDeckProvider = StateProvider<List<PlayCard>>((ref) {
 final selectedAttackDeckProvider = StateProvider<List<PlayCard>>((ref) => []);
 
 // 連勝/PvPボーナスの1日あたり合計獲得上限（コイン）
-// UI文言「1日上限🪙20」に対応する、実際に強制する側の定数
+// UI文言「1日上限🪙２０」に対応する、実際に強制する側の定数
 const int kDailyBonusCoinCap = 15;
 
 // ジェムの使い道（機能ブースト）
@@ -131,7 +131,7 @@ class WalletState {
   int get dailyBonusCapExtensionsUsedToday => _todayCapExtra ~/ kDailyBonusCapExtensionAmount;
 
   // 1日上限を考慮した上で、実際に獲得した後のウォレット状態を返す
-  // 戻り値: (更新後のWalletState, 実際に加算されたコイン額)
+  // 戻り値: （更新後のWalletState, 実際に加算されたコイン額）
   (WalletState, int) grantDailyBonus(int rawAmount, {bool isVip = false}) {
     if (rawAmount <= 0) return (this, 0);
     final today = todayKeyJst();
@@ -203,7 +203,7 @@ class WalletState {
 final walletProvider = StateProvider<WalletState>((ref) => const WalletState());
 
 // walletProviderをFirestoreの値で初期化済みのuid（未初期化はnull）。
-// userWalletProviderがロードされるたびに毎回walletProviderへ上書きすると、
+// userWalletProviderがロードされるたびに毎回 walletProviderへ上書きすると、
 // 対戦・課金などで直後に行ったローカルの楽観的更新を巻き戻してしまうため、
 // 「同一ユーザーにつき1回だけ」ハイドレートするためのガードに使う。
 final walletHydratedForUidProvider = StateProvider<String?>((ref) => null);
@@ -237,10 +237,15 @@ final userWalletProvider = FutureProvider<WalletState>((ref) async {
   }
 });
 
-// 自分のPvPレーティング（pvpBattle Cloud Functionがusers/{uid}/rating/currentを更新する）
-final myRatingProvider = FutureProvider<int>((ref) async {
+// 自分のPvPランク（レーティング・勝敗数・ティア）。
+// pvpBattle Cloud Functionがusers/{uid}/rating/currentを更新する唱一の書き込み元。
+// クライアント側には「勝利/敗北をローカルで反映する」ような更新手段を意図的に
+// 置かない — かつてplayerRankProvider（ローカルStateProvider）がこの役割を
+// 担っていたが、addWin()/addLoss()がどこからも呼ばれておらず、実際の対戦結果と
+// 無関係にBronze/1000/0勝0敗のまま永久に固定表示されるバグになっていた。
+final myPlayerRankProvider = FutureProvider<PlayerRank>((ref) async {
   final userId = ref.watch(currentUserIdProvider);
-  if (userId == null) return 1000;
+  if (userId == null) return const PlayerRank();
 
   try {
     final doc = await FirebaseFirestore.instance
@@ -249,21 +254,49 @@ final myRatingProvider = FutureProvider<int>((ref) async {
         .collection('rating')
         .doc('current')
         .get();
-    return (doc.data()?['rating'] as int?) ?? 1000;
+    final data = doc.data();
+    if (data == null) return const PlayerRank();
+    return PlayerRank.fromRating(
+      (data['rating'] as int?) ?? 1000,
+      wins: (data['wins'] as int?) ?? 0,
+      losses: (data['losses'] as int?) ?? 0,
+    );
   } catch (e) {
-    debugPrint('Error loading rating: $e');
-    return 1000;
+    debugPrint('Error loading player rank: $e');
+    return const PlayerRank();
   }
 });
 
-// カード作成1回あたりのコイン消費量
-const int kCardCreationCoinCost = 100;
-const int kVipCardCreationCoinCost = 80; // VIPパス加入者向け割引価格
+// マッチング時のレーティングド参照用（myPlayerRankProviderと同じFirestore読み込みを再利用する）
+final myRatingProvider = FutureProvider<int>((ref) async {
+  final rank = await ref.watch(myPlayerRankProvider.future);
+  return rank.rating;
+});
+
+// カード作成1回あたりのコイン消費量。選択したコスト（レアリティ帯 1〜5、
+// ステータス予算 20/25/30/35/40 に対応）ごとに価格が変わる。
+// 以前は全レアリティで完全に同額（100コイン）だったため、デッキ編成側に
+// コストを消費する仏組み（マナ制限など）が無いのと相まって、常に最高レアリティ
+// (cost=5)を選ぶこと以外に合理的な選択肢が存在しないバグになっていた。
+// レア度が上がるほど「コインあたりの取得ステータス量」が下がる（＝レア度自体に
+// プレミアムが付く）設計にしてあり、これは一般的なガチャゲームの経済設計に倦う。
+const Map<int, int> kCardCreationCoinCostByTier = {
+  1: 80,
+  2: 120,
+  3: 160,
+  4: 220,
+  5: 300,
+};
+// VIPパス加入者向け割引率（全レアリティ帯に一律適用）
+const double kVipCardCreationDiscount = 0.2;
 
 // VIPパス特典
 const int kVipDailyBonusCapBoost = 10; // デイリーボーナス基本上限への上乗せ
 
-int cardCreationCoinCost({required bool isVip}) => isVip ? kVipCardCreationCoinCost : kCardCreationCoinCost;
+int cardCreationCoinCost({required bool isVip, required int cost}) {
+  final base = kCardCreationCoinCostByTier[cost] ?? kCardCreationCoinCostByTier[1]!;
+  return isVip ? (base * (1 - kVipCardCreationDiscount)).round() : base;
+}
 
 // カード作成: パラメータ抽選（ガチャ）関連
 const int kParamRerollCoinCost = 30; // 引き直し1回あたりのコイン消費量
@@ -273,7 +306,7 @@ const double kParamBigHitBonusPercent = 0.15; // 当たり時の予算上乗せ�
 
 // ウォレット更新関数
 // 一時的なネットワーク断でコイン/ジェム付与（特に課金直後）が消えてしまわないよう、
-// 数回リトライしてから諦める。呼び出し側は戻り値のbool（永続化に成功したか）を見て、
+// 数回リトライしてから諾める。呼び出し側は戻り値のbool（永続化に成功したか）を見て、
 // 課金など重要な操作では失敗時にユーザーへ警告を出すこと。
 Future<bool> updateWallet(String userId, WalletState wallet) async {
   const maxAttempts = 3;
@@ -312,6 +345,12 @@ class PlayerRank {
     this.losses = 0,
   });
 
+  // ratingからtierを自動算出してPlayerRankを組み立てる。レーティングの更新は
+  // 必ずpvpBattle Cloud Function（サーバー側）でのみ行われるため、このクラスに
+  // 「対戦結果をローカルで反映する」ような更新メソッドは意図的に持たせない。
+  factory PlayerRank.fromRating(int rating, {int wins = 0, int losses = 0}) =>
+      PlayerRank(rating: rating, tier: tierForRating(rating), wins: wins, losses: losses);
+
   String get tierLabel {
     switch (tier) {
       case 'bronze': return 'ブロンズ';
@@ -334,27 +373,7 @@ class PlayerRank {
     }
   }
 
-  PlayerRank addWin() {
-    final newRating = rating + 20;
-    return PlayerRank(
-      rating: newRating,
-      tier: _calcTier(newRating),
-      wins: wins + 1,
-      losses: losses,
-    );
-  }
-
-  PlayerRank addLoss() {
-    final newRating = (rating - 15).clamp(0, 99999);
-    return PlayerRank(
-      rating: newRating,
-      tier: _calcTier(newRating),
-      wins: wins,
-      losses: losses + 1,
-    );
-  }
-
-  static String _calcTier(int r) {
+  static String tierForRating(int r) {
     if (r >= 2100) return 'diamond';
     if (r >= 1800) return 'platinum';
     if (r >= 1500) return 'gold';
@@ -362,8 +381,6 @@ class PlayerRank {
     return 'bronze';
   }
 }
-
-final playerRankProvider = StateProvider<PlayerRank>((ref) => const PlayerRank());
 
 // シードカード属性フィルター
 final attributeFilterProvider = StateProvider<String?>((ref) => null);

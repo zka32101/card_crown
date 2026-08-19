@@ -11,7 +11,7 @@ class AchievementsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
-    final rank = ref.watch(playerRankProvider);
+    final rank = ref.watch(myPlayerRankProvider).valueOrNull ?? const PlayerRank();
 
     // Mock badges (実装時は Firestore から取得)
     final unlockedBadges = <Badge>[
