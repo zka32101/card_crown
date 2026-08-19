@@ -31,7 +31,7 @@ class _RankingScreenV3State extends ConsumerState<RankingScreenV3> with TickerPr
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final rank = ref.watch(playerRankProvider);
+    final rank = ref.watch(myPlayerRankProvider).valueOrNull ?? const PlayerRank();
 
     return Scaffold(
       backgroundColor: Kingdom.night,

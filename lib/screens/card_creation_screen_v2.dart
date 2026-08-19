@@ -46,9 +46,9 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
 
   int get _budget => switch (_cost ?? 1) { 1 => 20, 2 => 25, 3 => 30, 4 => 35, _ => 40 };
   // build内(Widgetツリー構築中)でのみ使用。ref.watchはbuildフェーズ外(onPressed等)から
-  // 呼ぶとエラーになるため、イベントハンドラ側では ref.read(vipStatusProvider) を直接使うこと。
+  // 呼ぶとエラーになるため、イベントハンドラー側では ref.read(vipStatusProvider) を直接使うこと。
   bool get _isVipWatched => ref.watch(vipStatusProvider).valueOrNull ?? false;
-  int get _creationCostWatched => cardCreationCoinCost(isVip: _isVipWatched);
+  int get _creationCostWatched => cardCreationCoinCost(isVip: _isVipWatched, cost: _cost ?? 1);
   bool get _isParamValid => _hasRolled;
   int get _remainingRerolls => kParamRerollMaxCount - _rerollsUsed;
 
@@ -369,6 +369,8 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
                         children: [
                           Text(t.cardCreation_costLabel(c), style: Kingdom.label(size: Kingdom.textBody, color: Kingdom.parchment)),
                           Text(t.cardCreation_costBudget(budget), style: TextStyle(fontSize: 12, color: Kingdom.parchment.withValues(alpha: 0.5))),
+                          Text(t.cardCreation_costPrice(cardCreationCoinCost(isVip: _isVipWatched, cost: c)),
+                              style: TextStyle(fontSize: 12, color: Kingdom.gilt.withValues(alpha: 0.8))),
                         ],
                       ),
                     ),
@@ -768,7 +770,7 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
     final t = AppLocalizations.of(context)!;
     final wallet = ref.read(walletProvider);
     final isVip = ref.read(vipStatusProvider).valueOrNull ?? false;
-    final cost = cardCreationCoinCost(isVip: isVip);
+    final cost = cardCreationCoinCost(isVip: isVip, cost: _cost ?? 1);
     if (wallet.coinBalance < cost) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -824,7 +826,7 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
   Future<void> _processPurchase() async {
     final wallet = ref.read(walletProvider);
     final isVip = ref.read(vipStatusProvider).valueOrNull ?? false;
-    final cost = cardCreationCoinCost(isVip: isVip);
+    final cost = cardCreationCoinCost(isVip: isVip, cost: _cost ?? 1);
     if (wallet.coinBalance < cost) {
       // _confirmAndPay側で確認済みだが、確認ダイアログ表示中の消費と競合した場合の保険
       return;

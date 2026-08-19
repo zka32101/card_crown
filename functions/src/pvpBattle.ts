@@ -300,9 +300,14 @@ export const pvpBattle = functions
 
     const result = simulateBattle(attackerDeck, defenderDeckSnapshot, migratedAttribute);
 
-    // レーティング更新（簡易固定幅）
+    // レーティング更新（簡易固定幅）。
+    // 以前は勝利+15/敗北-10という非対称な幅だったため、五分の勝率でも
+    // 対戦を重ねるほど平均レーティングが際限なく上昇し続けてしまっていた
+    // （プレイヤーのランク表示がこれまでローカル固定でこの歪みが表面化して
+    // いなかったが、実データを表示するようになった今は無視できない）。
+    // 対称な幅にして、五分の勝率なら長期的にレーティングが均衡するようにする。
     // TODO: 相手レーティング差を考慮したELO式に拡張できる
-    const ratingDelta = result.attackerWon ? 15 : -10;
+    const ratingDelta = result.attackerWon ? 15 : -15;
     const ratingRef = admin.firestore()
       .collection("users").doc(userId)
       .collection("rating").doc("current");
