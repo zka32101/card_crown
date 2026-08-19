@@ -20,6 +20,20 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      # android/app/google-services.json は Firebase プロジェクト固有の設定ファイルで
+      # .gitignore 対象のためリポジトリに含まれていない。ビルド前にリポジトリの
+      # GOOGLE_SERVICES_JSON シークレット（JSONそのままの中身）から復元する。
+      # 未設定の場合は分かりやすいメッセージで失敗させる。
+      - name: Restore google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "::error::Secret GOOGLE_SERVICES_JSON is not set. Add your Firebase android/app/google-services.json content as a repository secret (Settings > Secrets and variables > Actions) named GOOGLE_SERVICES_JSON."
+            exit 1
+          fi
+          echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
       - name: Build APK
         run: flutter build apk --release
 
