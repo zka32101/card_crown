@@ -1,26 +1,45 @@
-﻿name: Build and Deploy APK
+name: Build and Deploy APK
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      
+      - uses: actions/checkout@v4
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.x'
-      
+
       - name: Get dependencies
         run: flutter pub get
-      
+
+      # android/app/google-services.json は Firebase プロジェクト固有の設定ファイルで
+      # .gitignore 対象のためリポジトリに含まれていない。ビルド前にリポジトリの
+      # GOOGLE_SERVICES_JSON シークレット（JSONそのままの中身）から復元する。
+      # 未設定の場合は分かりやすいメッセージで失敗させる。
+      - name: Restore google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "::error::Secret GOOGLE_SERVICES_JSON is not set. Add your Firebase android/app/google-services.json content as a repository secret (Settings > Secrets and variables > Actions) named GOOGLE_SERVICES_JSON."
+            exit 1
+          fi
+          echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
       - name: Build APK
         run: flutter build apk --release
-      
-      - name: Upload APK
-        run: echo "APK built and ready for deployment"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: card-crown-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
