@@ -63,7 +63,7 @@ class _HomeScreenV2State extends ConsumerState<HomeScreenV2> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final rank = ref.watch(playerRankProvider);
+    final rank = ref.watch(myPlayerRankProvider).valueOrNull ?? const PlayerRank();
     final wallet = ref.watch(walletProvider);
     final defenseDeck = ref.watch(defenseDeckProvider);
 
