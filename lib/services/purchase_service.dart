@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 // RevenueCat Offering / Package IDs
-// ※ RevenueCatダッシュボード側で同名のOffering/Packageを作成しておくこと
-// カード作成はコイン消費(kCardCreationCoinCost)に一本化しており、
+// ※ RevenueCatダッシュボード側で同名Offering/Packageを作成しておくこと
+// カード作成はコイン消費(kCardCreationCoinCostByTier)に一本化しており、
 // 実売購入としてのcard_create Offeringは廃止した。
 const String kStarterPackOffering = 'starter_pack'; // ¥300（3枚分）
 const String kCurrencyShopOffering = 'currency_shop'; // コイン/ジェムパック各種
@@ -104,7 +104,7 @@ class PurchaseService {
     _initialized = true;
   }
 
-  // Offering内の最初の（通常唯一の）パッケージを購入する共通処理。
+  // Offering内の最初の（通常唐一の）パッケージを購入する共通処理。
   // starter_packは「1回きりの解放」であり定期購読ではないため、
   // 特定の期間区分（.monthly等）を決め打ちで参照せず、Offeringが持つ
   // パッケージをそのまま使う（旧実装は存在しないsubscription用の.monthlyを
