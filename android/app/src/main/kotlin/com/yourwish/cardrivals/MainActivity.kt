@@ -1,4 +1,4 @@
-package com.yourwish.cardcrown
+package com.yourwish.cardrivals
 
 import io.flutter.embedding.android.FlutterActivity
 
