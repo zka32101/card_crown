@@ -2,6 +2,13 @@
 // ios/Runner/GoogleService-Info.plist.
 // Account: funvestment1@gmail.com / Project: apps2-752cb（yourwishモノレポ命名規則）
 // Package/Bundle ID: com.yourwish.cardcrown（Android/iOS共通）
+//
+// ⚠️ STALE: applicationId/bundle IDはcom.yourwish.cardrivalsへ変更済みだが、
+// このファイルはまだ旧パッケージ名(com.yourwish.cardcrown)・旧プロジェクト情報を含んだまま。
+// 新しいFirebaseプロジェクトでcom.yourwish.cardrivalsとしてAndroid/iOSアプリを登録した後、
+// `flutterfire configure` を再実行してこのファイルを再生成すること。
+// （手動で書き換える場合は android/app/google-services.json と
+//  ios/Runner/GoogleService-Info.plist の値をそのまま転記する）
 
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
