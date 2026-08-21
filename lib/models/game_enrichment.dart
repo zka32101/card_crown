@@ -182,6 +182,34 @@ final kBadgeDefinitions = [
   ),
 ];
 
+// 現在の実績値から実際にアンロック済みのバッジを判定する。
+// all_attributes（3属性でのカード作成）・comeback_win（HP1からの逆転勝利）・
+// perfect_victory（ノーダメージ勝利）は判定に必要な統計をまだ追跡していないため、
+// 現状は対象外（＝誤ってアンロック済みと表示することはない）。
+List<Badge> computeUnlockedBadges({
+  required int wins,
+  required int rating,
+  required int cardsCreated,
+  required int loginStreak,
+}) {
+  final unlockedIds = <String>{
+    if (wins >= 1) 'first_victory',
+    if (cardsCreated >= 1) 'first_card_created',
+    if (wins >= 10) 'ten_victories',
+    if (wins >= 50) 'fifty_victories',
+    if (wins >= 100) 'hundred_victories',
+    if (rating >= 500) 'bronze_rank',
+    if (rating >= 1000) 'silver_rank',
+    if (rating >= 1500) 'gold_rank',
+    if (rating >= 2000) 'platinum_rank',
+    if (rating >= 2500) 'diamond_rank',
+    if (cardsCreated >= 5) 'five_cards',
+    if (loginStreak >= 7) 'seven_day_streak',
+    if (loginStreak >= 30) 'thirty_day_streak',
+  };
+  return kBadgeDefinitions.where((b) => unlockedIds.contains(b.id)).toList();
+}
+
 // 実績定義
 List<AchievementProgress> getAchievementProgress({
   required int wins,
