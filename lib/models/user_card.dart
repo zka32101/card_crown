@@ -37,6 +37,15 @@ class UserCard {
   // attackPower/defensePower/speed（作成時の基礎値）にレベルボーナスを
   // 加算したもの — leveledAttackPower等を使うこと。
   final int level;
+  // レンタル一覧に公開しているか（trueの間、他ユーザーが人気度ランキングから閲覧・レンタルできる）
+  final bool isPublic;
+  // レンタル料金（表示専用の参考値。実際の請求額はレンタル日数プラン
+  // ×rentCard Cloud Function側の固定テーブルで決まる — lib/screens/popular_cards_screen.dart
+  // の_rentalPlansと同じ値を使う。将来、日数プランをこの値ベースに変える余地を残すため保持）
+  final int rentalCostPerDay;
+  // 累計レンタル回数・累計レンタル収益（rentCard Cloud FunctionがAdmin SDK経由で更新する）
+  final int totalRentalCount;
+  final int totalRentalEarnings;
 
   UserCard({
     required this.cardId,
@@ -59,6 +68,10 @@ class UserCard {
     this.coCreatorId,
     this.coCreatorName,
     this.level = 0,
+    this.isPublic = false,
+    this.rentalCostPerDay = 50,
+    this.totalRentalCount = 0,
+    this.totalRentalEarnings = 0,
   });
 
   String get nameJp => cardName['jp'] ?? '';
@@ -101,6 +114,10 @@ class UserCard {
     'coCreatorId': coCreatorId,
     'coCreatorName': coCreatorName,
     'level': level,
+    'isPublic': isPublic,
+    'rentalCostPerDay': rentalCostPerDay,
+    'totalRentalCount': totalRentalCount,
+    'totalRentalEarnings': totalRentalEarnings,
   };
 
   factory UserCard.fromMap(Map<String, dynamic> map) => UserCard(
@@ -124,6 +141,10 @@ class UserCard {
     coCreatorId: map['coCreatorId'],
     coCreatorName: map['coCreatorName'],
     level: map['level'] ?? 0,
+    isPublic: map['isPublic'] ?? false,
+    rentalCostPerDay: map['rentalCostPerDay'] ?? 50,
+    totalRentalCount: map['totalRentalCount'] ?? 0,
+    totalRentalEarnings: map['totalRentalEarnings'] ?? 0,
   );
 
   UserCard copyWith({
@@ -135,6 +156,10 @@ class UserCard {
     int? totalVictoriesWithCard,
     int? todayVictoriesCount,
     int? level,
+    bool? isPublic,
+    int? rentalCostPerDay,
+    int? totalRentalCount,
+    int? totalRentalEarnings,
   }) {
     return UserCard(
       cardId: cardId,
@@ -157,6 +182,10 @@ class UserCard {
       coCreatorId: coCreatorId,
       coCreatorName: coCreatorName,
       level: level ?? this.level,
+      isPublic: isPublic ?? this.isPublic,
+      rentalCostPerDay: rentalCostPerDay ?? this.rentalCostPerDay,
+      totalRentalCount: totalRentalCount ?? this.totalRentalCount,
+      totalRentalEarnings: totalRentalEarnings ?? this.totalRentalEarnings,
     );
   }
 

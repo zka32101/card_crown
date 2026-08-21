@@ -6,6 +6,7 @@ export {generateCardImage} from "./generateCardImage";
 export {generateCardName} from "./generateCardName";
 export {pvpMatch} from "./pvpMatch";
 export {pvpBattle} from "./pvpBattle";
+export {rentCard} from "./rentCard";
 export {
   generateDailyEmotionCardName,
   generateDailyEmotionCardImage,
