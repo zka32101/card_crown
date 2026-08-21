@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/card_rental.dart';
 import '../models/user_card.dart';
@@ -79,6 +80,42 @@ final popularCardsProvider = FutureProvider<List<CardPopularityScore>>((ref) asy
       lastUpdated: DateTime.now(),
     );
   });
+});
+
+// 現在有効な（期限切れでない）自分のレンタル中カード一覧。
+// rentCard Cloud Functionがレンタル成立時にrentals/{id}へ書き込んだステータス
+// スナップショットをそのまま使う — 貸し手側の元カードを都度読みに行かない
+// （貸し手が後で非公開にしたり削除したりしても、契約時点の内容でレンタルが
+//  継続する。pvpBattle.tsのresolveRentedCardも同じスナップショットを参照する）。
+final myActiveRentalsProvider = FutureProvider<List<PlayCard>>((ref) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return [];
+
+  try {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('rentals')
+        .where('renterUid', isEqualTo: userId)
+        .where('rentalEnd', isGreaterThan: Timestamp.now())
+        .get();
+
+    return snapshot.docs.map((d) {
+      final data = d.data();
+      return PlayCard(
+        cardId: data['cardId'] as String? ?? '',
+        attribute: data['attribute'] as String? ?? 'joy',
+        cost: (data['cost'] as int?) ?? 1,
+        attackPower: (data['attackPower'] as int?) ?? 0,
+        defensePower: (data['defensePower'] as int?) ?? 0,
+        speed: (data['speed'] as int?) ?? 0,
+        nameJp: data['cardName'] as String? ?? '',
+        isSeedCard: false,
+        isRented: true,
+      );
+    }).toList();
+  } catch (e) {
+    debugPrint('Error loading active rentals: $e');
+    return [];
+  }
 });
 
 // カードをレンタルする（rentCard Cloud Function経由・サーバー権威）。

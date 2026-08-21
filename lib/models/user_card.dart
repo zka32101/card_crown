@@ -225,6 +225,11 @@ class PlayCard {
   // 特訓レベル（シードカードは常に0。attackPower等には既にレベルボーナスが
   // 織り込み済みで、この値は表示専用）
   final int level;
+  // レンタル中のカードか（他ユーザーから期間限定で借りているカード）。
+  // trueの場合、cardIdは自分のcards/rentalsではなく貸し手のカードIDを指す —
+  // battleEligibleCardsProvider（collection_provider.dart）が有効なレンタル記録から
+  // 生成するもので、通常はこのフラグを手動でtrueにしない。
+  final bool isRented;
 
   PlayCard({
     required this.cardId,
@@ -238,6 +243,7 @@ class PlayCard {
     this.isSeedCard = true,
     this.coCreatorName,
     this.level = 0,
+    this.isRented = false,
   });
 
   bool get isCoCreated => coCreatorName != null && coCreatorName!.isNotEmpty;

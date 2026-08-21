@@ -7,6 +7,23 @@
         { "fieldPath": "isPublic", "order": "ASCENDING" },
         { "fieldPath": "totalRentalCount", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "rentals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "renterUid", "order": "ASCENDING" },
+        { "fieldPath": "rentalEnd", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "rentals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "renterUid", "order": "ASCENDING" },
+        { "fieldPath": "cardId", "order": "ASCENDING" },
+        { "fieldPath": "rentalEnd", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -204,6 +204,7 @@
   "deckSelection_selectedCardsLabel": "✓ 選択済みカード",
   "deckSelection_cardsAvailable": "{count}枚のカードから選択",
   "deckSelection_longPressHint": "（長押しで詳細）",
+  "deckSelection_rentedBadge": "🔁 レンタル中",
   "@deckSelection_cardsAvailable": {"placeholders":{"count":{"type":"int"}}},
   "deckSelection_maxCardsReached": "{count}枚まで選択できます",
   "@deckSelection_maxCardsReached": {"placeholders":{"count":{"type":"int"}}},

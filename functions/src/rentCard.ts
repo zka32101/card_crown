@@ -24,6 +24,13 @@ const CREATOR_SHARE_PERCENT = 70;
 // lib/providers/game_state_provider.dart の WalletState() のデフォルトと同じ値。
 const DEFAULT_COIN_BALANCE = 100;
 
+// カード育成（特訓）のレベルボーナス。lib/models/user_card.dart の
+// kCardLevelAttackBonus/kCardLevelDefenseBonus/kCardLevelSpeedBonus、
+// および pvpBattle.ts の同名定数と同じ値。
+const CARD_LEVEL_ATTACK_BONUS = 2;
+const CARD_LEVEL_DEFENSE_BONUS = 2;
+const CARD_LEVEL_SPEED_BONUS = 1;
+
 interface RentCardRequest {
   cardId: string;
   creatorId: string;
@@ -100,10 +107,19 @@ export const rentCard = functions
         totalRentalEarnings: admin.firestore.FieldValue.increment(creatorEarnings),
       });
 
+      // カードのステータスをレンタル成立時点でスナップショットしておく。
+      // 借り手はこの内容だけを見てバトルに使う（貸し手が後で非公開にしたり
+      // カードを編集・削除しても、契約時点の内容でレンタルが継続する）。
+      // pvpBattle.ts の resolveRentedCard も同じスナップショットを参照する。
       tx.set(rentalRef, {
         id: rentalRef.id,
         cardId,
         cardName: cardData.cardName?.jp || cardData.cardName?.en || "",
+        attribute: cardData.attribute,
+        cost: cardData.cost ?? 1,
+        attackPower: (cardData.attackPower ?? 0) + (cardData.level ?? 0) * CARD_LEVEL_ATTACK_BONUS,
+        defensePower: (cardData.defensePower ?? 0) + (cardData.level ?? 0) * CARD_LEVEL_DEFENSE_BONUS,
+        speed: (cardData.speed ?? 0) + (cardData.level ?? 0) * CARD_LEVEL_SPEED_BONUS,
         renterUid: renterId,
         creatorUid: creatorId,
         totalCost,
