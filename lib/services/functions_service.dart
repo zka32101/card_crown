@@ -76,4 +76,21 @@ class FunctionsService {
     });
     return Map<String, dynamic>.from(result.data as Map);
   }
+
+  // カードレンタル（サーバーサイド・借り手のコイン減算とクリエイターへの収益付与を
+  // アトミックに行う。2ユーザー間の通貨移動のためクライアントの直接Firestore書き込みは
+  // 許可していない）
+  static Future<Map<String, dynamic>> rentCard({
+    required String cardId,
+    required String creatorId,
+    required int rentalDays,
+  }) async {
+    final callable = _functions.httpsCallable('rentCard');
+    final result = await callable.call({
+      'cardId': cardId,
+      'creatorId': creatorId,
+      'rentalDays': rentalDays,
+    });
+    return Map<String, dynamic>.from(result.data as Map);
+  }
 }

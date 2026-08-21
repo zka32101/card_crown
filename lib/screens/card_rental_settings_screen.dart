@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../providers/card_rental_provider.dart';
-import '../models/card_rental.dart';
+import '../providers/collection_provider.dart';
 import '../models/user_card.dart';
 import '../theme/kingdom_theme.dart';
 import '../l10n/app_localizations.dart';
@@ -12,8 +12,7 @@ class CardRentalSettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
-    final myCards = ref.watch(userOwnedCardsProvider);
-    final listings = ref.watch(userCardListingsProvider);
+    final myCards = ref.watch(myCardsProvider);
     final earnings = ref.watch(userRentalEarningsProvider);
 
     return Scaffold(
@@ -51,7 +50,7 @@ class CardRentalSettingsScreen extends ConsumerWidget {
                                   fontWeight: FontWeight.bold,
                                   color: Kingdom.joyGold)),
                           const SizedBox(height: 6),
-                          Text(t.cardRental_publicCount(listings.where((l) => l.isPublic).length),
+                          Text(t.cardRental_publicCount(myCards.where((c) => c.isPublic).length),
                               style: TextStyle(fontSize: Kingdom.textCaption, color: Kingdom.joyGold.withValues(alpha: 0.8))),
                         ],
                       ),
@@ -77,25 +76,10 @@ class CardRentalSettingsScreen extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: Kingdom.spaceMd),
                     child: Column(
-                      children: myCards.asMap().entries.map((e) {
-                        final card = e.value;
-                        final listing = listings.firstWhere(
-                          (l) => l.cardId == card.cardId,
-                          orElse: () => CardListing(
-                            cardId: card.cardId,
-                            userId: 'user_placeholder',
-                            creatorName: '',
-                            isPublic: false,
-                            createdAt: DateTime.now(),
-                          ),
-                        );
-
+                      children: myCards.map((card) {
                         return _CardRentalToggleItem(
                           card: card,
-                          isPublic: listing.isPublic,
-                          onToggle: (value) {
-                            toggleCardPublic(ref, card.cardId, value, 'Player');
-                          },
+                          onToggle: (value) => toggleCardPublic(ref, card.cardId, value),
                         );
                       }).toList(),
                     ),
@@ -112,13 +96,11 @@ class CardRentalSettingsScreen extends ConsumerWidget {
 }
 
 class _CardRentalToggleItem extends StatelessWidget {
-  final PlayCard card;
-  final bool isPublic;
+  final UserCard card;
   final Function(bool) onToggle;
 
   const _CardRentalToggleItem({
     required this.card,
-    required this.isPublic,
     required this.onToggle,
   });
 
@@ -132,6 +114,7 @@ class _CardRentalToggleItem extends StatelessWidget {
       'speed' => '⚡',
       _ => '⚖️',
     };
+    final isPublic = card.isPublic;
     final accent = isPublic ? Kingdom.joyGold : const Color(0xFF7C9CDB);
 
     return Container(

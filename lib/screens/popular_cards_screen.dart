@@ -12,7 +12,7 @@ class PopularCardsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
-    final topCards = ref.watch(popularCardsTOP100Provider);
+    final topCardsAsync = ref.watch(popularCardsProvider);
     final wallet = ref.watch(walletProvider);
 
     return Scaffold(
@@ -25,7 +25,10 @@ class PopularCardsScreen extends ConsumerWidget {
       body: Stack(
         children: [
           const Positioned.fill(child: EmotionMoteField(count: 10)),
-          SingleChildScrollView(
+          RefreshIndicator(
+            onRefresh: () => ref.refresh(popularCardsProvider.future),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           children: [
             // 説明
@@ -42,23 +45,38 @@ class PopularCardsScreen extends ConsumerWidget {
             ),
 
             // ランキングリスト
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: Kingdom.spaceMd),
-              itemCount: topCards.length,
-              itemBuilder: (_, index) {
-                final card = topCards[index];
-                return _PopularCardItem(
-                  card: card,
-                  onRent: () => _showRentalDialog(context, ref, card, wallet),
-                );
-              },
-            ),
+            switch (topCardsAsync) {
+              AsyncData(:final value) when value.isEmpty => Padding(
+                  padding: const EdgeInsets.all(Kingdom.spaceXl),
+                  child: Text(t.rankingV3_noData, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.5))),
+                ),
+              AsyncData(:final value) => ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: Kingdom.spaceMd),
+                  itemCount: value.length,
+                  itemBuilder: (_, index) {
+                    final card = value[index];
+                    return _PopularCardItem(
+                      card: card,
+                      onRent: () => _showRentalDialog(context, ref, card, wallet),
+                    );
+                  },
+                ),
+              AsyncError() => Padding(
+                  padding: const EdgeInsets.all(Kingdom.spaceXl),
+                  child: Text(t.popularCards_loadError, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.5))),
+                ),
+              _ => const Padding(
+                  padding: EdgeInsets.all(Kingdom.spaceXl),
+                  child: Center(child: CircularProgressIndicator(color: Kingdom.gilt)),
+                ),
+            },
 
             const SizedBox(height: Kingdom.spaceXl),
           ],
         ),
+            ),
           ),
         ],
       ),
@@ -75,6 +93,7 @@ class PopularCardsScreen extends ConsumerWidget {
     WalletState wallet,
   ) {
     int selectedDays = 1;
+    bool isSubmitting = false;
     final t = AppLocalizations.of(context)!;
 
     showDialog(
@@ -95,9 +114,9 @@ class PopularCardsScreen extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // カード情報
+                  // 使用回数・勝率はまだサーバー側でトラッキングしていないため、
+                  // 常に0になってしまう項目は表示しない（実データが揃うまでの間の措置）
                   _InfoRow(label: t.popularCards_costLabel, value: '${card.cost}'),
-                  _InfoRow(label: t.popularCards_winRateLabel, value: '${(card.winRate * 100).toStringAsFixed(1)}%'),
-                  _InfoRow(label: t.popularCards_usageCountLabel, value: '${card.totalUsageCount}'),
                   _InfoRow(label: t.popularCards_rentalCountLabel, value: '${card.totalRentalCount}'),
                   Divider(color: Kingdom.parchment.withValues(alpha: 0.2)),
 
@@ -120,7 +139,7 @@ class PopularCardsScreen extends ConsumerWidget {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: isSubmitting ? null : () => Navigator.pop(context),
                 child: Text(t.popularCards_cancelButton, style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.7))),
               ),
               ElevatedButton(
@@ -129,24 +148,27 @@ class PopularCardsScreen extends ConsumerWidget {
                   foregroundColor: Kingdom.parchment,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: wallet.coinBalance >= selectedTotalCost
-                    ? () {
+                onPressed: (!isSubmitting && wallet.coinBalance >= selectedTotalCost)
+                    ? () async {
+                        setDialogState(() => isSubmitting = true);
                         final levelBefore = card.evolutionLevel;
-                        final success =
-                            rentCard(ref, card, 'user_placeholder', selectedDays, selectedTotalCost);
+                        final errorMessage = await rentCard(ref, card, selectedDays);
+                        if (!context.mounted) return;
                         Navigator.pop(context);
 
-                        if (!success) {
+                        if (errorMessage != null) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(t.popularCards_insufficientCoins), backgroundColor: Kingdom.angerCrimson),
+                            SnackBar(content: Text(errorMessage), backgroundColor: Kingdom.angerCrimson),
                           );
                           return;
                         }
 
-                        final updated = ref
-                            .read(popularCardsTOP100Provider)
-                            .firstWhere((c) => c.cardId == card.cardId, orElse: () => card);
+                        // レンタル成功: ランキングを再取得して進化状態の変化を確認する
+                        ref.invalidate(popularCardsProvider);
+                        final refreshed = await ref.read(popularCardsProvider.future);
+                        final updated = refreshed.firstWhere((c) => c.cardId == card.cardId, orElse: () => card);
                         final leveledUp = updated.evolutionLevel > levelBefore;
+                        if (!context.mounted) return;
 
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -158,7 +180,13 @@ class PopularCardsScreen extends ConsumerWidget {
                         );
                       }
                     : null,
-                child: Text(t.popularCards_rentButton),
+                child: isSubmitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Kingdom.parchment),
+                      )
+                    : Text(t.popularCards_rentButton),
               ),
             ],
           );
@@ -276,12 +304,10 @@ class _PopularCardItem extends StatelessWidget {
 
           const SizedBox(height: 8),
 
-          // 統計
+          // 統計（使用回数・勝率はまだサーバー側でトラッキングしていないため非表示）
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _StatItem(icon: '⚔', label: t.popularCards_usageStatLabel, value: '${card.totalUsageCount}'),
-              _StatItem(icon: '🎯', label: t.popularCards_winRateStatLabel, value: '${(card.winRate * 100).toStringAsFixed(0)}%'),
               _StatItem(icon: '🔄', label: t.popularCards_rentalStatLabel, value: '${card.totalRentalCount}'),
               _StatItem(icon: '💰', label: t.popularCards_earningsStatLabel, value: '${card.totalEarnings}'),
             ],

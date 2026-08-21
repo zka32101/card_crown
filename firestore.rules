@@ -32,9 +32,15 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
-      // ユーザーが作成したカード（コインを消費して作成。特訓レベルもここに保存）
+      // ユーザーが作成したカード（コインを消費して作成。特訓レベルもここに保存）。
+      // isPublic=trueのカードは、レンタル一覧（collectionGroupクエリ）で他ユーザーからも
+      // 読み取れる必要がある。書き込みは引き続き本人のみ
+      // （totalRentalCount/totalRentalEarningsの更新はrentCard Cloud FunctionがAdmin SDK経由で
+      //  行うため、このルールの対象外＝クライアントから直接改ざんすることはできない）。
       match /cards/{cardId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if request.auth != null &&
+          (request.auth.uid == userId || resource.data.isPublic == true);
+        allow write: if request.auth != null && request.auth.uid == userId;
       }
 
       // PvPレーティング（pvpBattle Cloud Functionのみが更新。クライアントは本人の分を読み取りのみ）
@@ -42,6 +48,16 @@ service cloud.firestore {
         allow read: if request.auth != null && request.auth.uid == userId;
         allow write: if false;
       }
+    }
+
+    // =============== カードレンタル取引記録 ===============
+    // renterUid/creatorUid 双方の当事者のみ読み取り可能。書き込みは常にfalse
+    // —— rentCard Cloud FunctionがAdmin SDK経由でのみ作成する（通貨移動を伴うため
+    //     クライアントの直接書き込みは許可しない。他のPvP/購入系と同じ方針）。
+    match /rentals/{rentalId} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == resource.data.renterUid || request.auth.uid == resource.data.creatorUid);
+      allow write: if false;
     }
   }
 }

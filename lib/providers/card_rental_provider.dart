@@ -1,165 +1,105 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/card_rental.dart';
 import '../models/user_card.dart';
+import '../services/functions_service.dart';
+import 'auth_provider.dart';
+import 'collection_provider.dart';
 import 'game_state_provider.dart';
 
-// クリエイター取り分（レンタル料の70%）
+// クリエイター取り分（レンタル料の70%）。functions/src/rentCard.ts の
+// CREATOR_SHARE_PERCENT と同じ値（実際の配分計算はサーバー側で行う。ここでは表示用）。
 const int kRentalCreatorSharePercent = 70;
 
-// ユーザーが所有するカード（貸し出し設定可能）
-final userOwnedCardsProvider = StateProvider<List<PlayCard>>((ref) {
-  // 本実装では Firestore から取得
-  return [];
+// レンタル日数プランと総額（コイン）。functions/src/rentCard.ts の RENTAL_PLANS と
+// 必ず同じ値にすること — 表示価格とサーバー請求額を一致させるため。
+const Map<int, int> kRentalPlans = {1: 50, 7: 300, 30: 1000};
+
+// 自分のレンタル収益累計（自分が作成した公開カード全体の合計）。
+// myCardsProvider（Firestoreからハイドレーション済み）の実データから導出する。
+final userRentalEarningsProvider = Provider<int>((ref) {
+  final myCards = ref.watch(myCardsProvider);
+  return myCards.fold<int>(0, (total, c) => total + c.totalRentalEarnings);
 });
 
-// ユーザーのカード公開設定
-final userCardListingsProvider = StateProvider<List<CardListing>>((ref) {
-  // 本実装では Firestore から取得
-  return [];
-});
+// カードの公開/非公開を切り替える。レンタル料自体はkRentalPlansの固定テーブルで
+// 決まるため、ここでは公開フラグのみをFirestoreへ永続化する
+// （単一ユーザーの所有カード編集であり、pvpBattle/rentCardのような他ユーザーとの
+//  通貨移動を伴わないため、既存のsaveUserCardと同じくクライアント直接書き込みで良い）。
+Future<void> toggleCardPublic(WidgetRef ref, String cardId, bool isPublic) async {
+  final cards = ref.read(myCardsProvider);
+  final index = cards.indexWhere((c) => c.cardId == cardId);
+  if (index == -1) return;
 
-// 人気度ランキング（TOP 100）
-final popularCardsTOP100Provider = StateProvider<List<CardPopularityScore>>((ref) {
-  // ダミーデータ
-  return _generateDummyPopularCards();
-});
+  final updated = cards[index].copyWith(isPublic: isPublic);
+  final updatedCards = List<UserCard>.from(cards)..[index] = updated;
+  ref.read(myCardsProvider.notifier).state = updatedCards;
 
-// 現在レンタル中のカード
-final activeRentalsProvider = StateProvider<List<RentalTransaction>>((ref) {
-  // 本実装では Firestore から取得
-  return [];
-});
-
-// ユーザーのレンタル収益
-final userRentalEarningsProvider = StateProvider<int>((ref) {
-  final listings = ref.watch(userCardListingsProvider);
-  // 本実装では Firestore から集計
-  return listings.length * 50; // ダミー
-});
-
-// 公開カードを ON/OFF
-void toggleCardPublic(
-  WidgetRef ref,
-  String cardId,
-  bool isPublic,
-  String creatorName,
-) {
-  final listings = ref.read(userCardListingsProvider);
-  final existing = listings.where((l) => l.cardId == cardId).firstOrNull;
-
-  if (existing != null) {
-    final updated = listings.map((l) {
-      if (l.cardId == cardId) {
-        return CardListing(
-          cardId: l.cardId,
-          userId: l.userId,
-          creatorName: creatorName,
-          isPublic: isPublic,
-          rentalCostPerDay: l.rentalCostPerDay,
-          creatorSharePercent: l.creatorSharePercent,
-          createdAt: l.createdAt,
-        );
-      }
-      return l;
-    }).toList();
-    ref.read(userCardListingsProvider.notifier).state = updated;
-  } else {
-    listings.add(CardListing(
-      cardId: cardId,
-      userId: 'user_placeholder',
-      creatorName: creatorName,
-      isPublic: isPublic,
-      rentalCostPerDay: 50,
-      creatorSharePercent: 70,
-      createdAt: DateTime.now(),
-    ));
-    ref.read(userCardListingsProvider.notifier).state = [...listings];
-  }
+  final userId = ref.read(currentUserIdProvider);
+  if (userId != null) await saveUserCard(userId, updated);
 }
 
-// カードをレンタル（借り手のコインを減算し、収益の70%をクリエイターに計上）
-// totalCost はUIが提示した実際の表示価格（レンタル期間ごとの料金プラン）をそのまま渡す。
-// card.cost（マナコスト）とは無関係 — ここで再計算すると表示価格と乖離するため注意。
-// 残高不足の場合は何もせず false を返す
-bool rentCard(
-  WidgetRef ref,
-  CardPopularityScore card,
-  String renterId,
-  int rentalDays,
-  int totalCost,
-) {
-  final wallet = ref.read(walletProvider);
+// 人気度ランキング（公開設定されている全ユーザーのカードを横断取得）。
+// isPublic=trueのカードを、現状トラッキングできている唯一の人気度シグナルである
+// レンタル回数順に並べる。使用回数・勝率を反映したスコアリングは、PvPバトル側に
+// カード使用実績のトラッキングを追加してから拡張する（今回のスコープ外）。
+final popularCardsProvider = FutureProvider<List<CardPopularityScore>>((ref) async {
+  final snapshot = await FirebaseFirestore.instance
+      .collectionGroup('cards')
+      .where('isPublic', isEqualTo: true)
+      .orderBy('totalRentalCount', descending: true)
+      .limit(100)
+      .get();
 
-  if (wallet.coinBalance < totalCost) return false;
-
-  final earnings = (totalCost * kRentalCreatorSharePercent) ~/ 100;
-
-  final transaction = RentalTransaction(
-    id: '${DateTime.now().millisecondsSinceEpoch}',
-    cardId: card.cardId,
-    cardName: card.cardName,
-    renterId: renterId,
-    creatorId: card.creatorId,
-    costPerDay: (totalCost / rentalDays).round(),
-    rentalDays: rentalDays,
-    totalCost: totalCost,
-    creatorEarnings: earnings,
-    rentalStart: DateTime.now(),
-    rentalEnd: DateTime.now().add(Duration(days: rentalDays)),
-  );
-
-  ref.read(walletProvider.notifier).state = wallet.copyWith(
-    coinBalance: wallet.coinBalance - totalCost,
-  );
-
-  final rentals = ref.read(activeRentalsProvider);
-  ref.read(activeRentalsProvider.notifier).state = [...rentals, transaction];
-
-  // レンタル回数を加算 → 一定回数でオーナーのカードが進化（使い込み進化）
-  final topCards = ref.read(popularCardsTOP100Provider);
-  ref.read(popularCardsTOP100Provider.notifier).state = topCards.map((c) {
-    if (c.cardId != card.cardId) return c;
-    return c.copyWith(
-      totalRentalCount: c.totalRentalCount + 1,
-      totalEarnings: c.totalEarnings + earnings,
-    );
-  }).toList();
-
-  return true;
-}
-
-List<CardPopularityScore> _generateDummyPopularCards() {
-  final cards = [
-    ('joy_c5_001', '太陽神', 'user_1', 'SunMaster', 'joy', 5, 250, 85, 120, 95),
-    ('anger_c4_001', '火の帝王', 'user_2', 'FireKing', 'anger', 4, 180, 72, 95, 78),
-    ('sadness_c3_001', '悲しみの王', 'user_3', 'SorrowLord', 'sadness', 3, 160, 65, 85, 55),
-    ('joy_c4_001', '黄金の皇帝', 'user_4', 'GoldEmperor', 'joy', 4, 140, 60, 78, 48),
-    ('anger_c3_001', '怒りの王', 'user_5', 'AngerKing', 'anger', 3, 120, 55, 68, 45),
-  ];
-
-  return cards.asMap().entries.map((e) {
-    final (cardId, name, creatorId, creatorName, attr, cost, usage, rental, battles, wins) = e.value;
-    final winRate = wins / battles;
-    // 人気度スコア: 使用×勝率 + レンタル×1 + 収益×0.05
-    final earnings = rental * 35;
-    final score = (usage * winRate) + (rental * 1.0) + (earnings * 0.05);
+  return List.generate(snapshot.docs.length, (i) {
+    final data = snapshot.docs[i].data();
+    final cardName = Map<String, String>.from(data['cardName'] ?? {});
+    final creatorId = data['userId'] as String? ?? '';
+    final rentalCount = (data['totalRentalCount'] as int?) ?? 0;
+    final earnings = (data['totalRentalEarnings'] as int?) ?? 0;
 
     return CardPopularityScore(
-      cardId: cardId,
-      cardName: name,
+      cardId: data['cardId'] as String? ?? snapshot.docs[i].id,
+      cardName: cardName['jp'] ?? cardName['en'] ?? '',
       creatorId: creatorId,
-      creatorName: creatorName,
-      attribute: attr,
-      cost: cost,
-      totalUsageCount: usage,
-      totalRentalCount: rental,
-      totalBattlesWithCard: battles,
-      totalWinsWithCard: wins,
-      winRate: winRate,
+      // このアプリにはまだ表示名（ハンドルネーム）機能が無く、認証も匿名のみのため、
+      // UIDの先頭6文字を使った擬似ハンドルで代用する（今後、表示名機能を追加したら差し替える）。
+      creatorName: creatorId.length >= 6 ? 'Player-${creatorId.substring(0, 6)}' : 'Player',
+      attribute: data['attribute'] as String? ?? 'joy',
+      cost: (data['cost'] as int?) ?? 1,
+      totalUsageCount: 0, // 未トラッキング（対象外）
+      totalRentalCount: rentalCount,
+      totalBattlesWithCard: 0, // 未トラッキング（対象外）
+      totalWinsWithCard: 0,
+      winRate: 0,
       totalEarnings: earnings,
-      popularityScore: score,
-      rank: e.key + 1,
+      popularityScore: rentalCount.toDouble() + earnings * 0.05,
+      rank: i + 1,
       lastUpdated: DateTime.now(),
     );
-  }).toList();
+  });
+});
+
+// カードをレンタルする（rentCard Cloud Function経由・サーバー権威）。
+// 成功時は借り手の残高をローカルウォレットにも反映してnullを返す。
+// 失敗時（残高不足・公開停止済みなど）はサーバー側のエラーメッセージを返す。
+Future<String?> rentCard(WidgetRef ref, CardPopularityScore card, int rentalDays) async {
+  try {
+    final result = await FunctionsService.rentCard(
+      cardId: card.cardId,
+      creatorId: card.creatorId,
+      rentalDays: rentalDays,
+    );
+    final newBalance = result['newCoinBalance'] as int?;
+    if (newBalance != null) {
+      final wallet = ref.read(walletProvider);
+      ref.read(walletProvider.notifier).state = wallet.copyWith(coinBalance: newBalance);
+    }
+    return null;
+  } on FirebaseFunctionsException catch (e) {
+    return e.message ?? 'unknown error';
+  } catch (_) {
+    return 'unknown error';
+  }
 }
