@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' hide Badge;
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/game_enrichment.dart';
 import '../providers/game_state_provider.dart';
+import '../providers/collection_provider.dart';
 import '../theme/kingdom_theme.dart';
 import '../l10n/app_localizations.dart';
 
@@ -12,19 +13,22 @@ class AchievementsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
     final rank = ref.watch(myPlayerRankProvider).valueOrNull ?? const PlayerRank();
+    final wallet = ref.watch(walletProvider);
+    final cardsCreated = ref.watch(myCardsProvider).length;
 
-    // Mock badges (実装時は Firestore から取得)
-    final unlockedBadges = <Badge>[
-      kBadgeDefinitions[0], // first_victory
-      kBadgeDefinitions[1], // first_card_created
-    ];
+    final unlockedBadges = computeUnlockedBadges(
+      wins: rank.wins,
+      rating: rank.rating,
+      cardsCreated: cardsCreated,
+      loginStreak: wallet.loginStreak,
+    );
 
     final achievements = getAchievementProgress(
       wins: rank.wins,
       losses: rank.losses,
       rating: rank.rating,
-      cardsCreated: 2, // Mock データ
-      dailyStreak: 5, // Mock データ
+      cardsCreated: cardsCreated,
+      dailyStreak: wallet.loginStreak,
       unlockedBadges: unlockedBadges,
     );
 
@@ -115,7 +119,7 @@ class AchievementsScreen extends ConsumerWidget {
             // ストリーク情報
             _SectionHeader(title: t.achievements_dailyBonusHeader),
             const SizedBox(height: Kingdom.spaceMd),
-            _StreakCard(streak: rank.wins), // Mock データ（wins を streak として使用）
+            _StreakCard(streak: wallet.winStreak),
           ],
         ),
           ),

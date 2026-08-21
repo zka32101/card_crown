@@ -44,14 +44,20 @@ const int kDailyBonusCapExtensionMaxPerDay = 2;
 // 本日のミッションセットを引き直す（未クレームの進捗は失われる）
 const int kMissionRerollGemCost = 2;
 
+// UTC時刻をJST（UTC+9）基準の yyyy-MM-dd 文字列に変換する
+String _dateKeyJst(DateTime utcTime) {
+  final jst = utcTime.add(const Duration(hours: 9));
+  return '${jst.year.toString().padLeft(4, '0')}-'
+      '${jst.month.toString().padLeft(2, '0')}-'
+      '${jst.day.toString().padLeft(2, '0')}';
+}
+
 // JST（UTC+9）基準の「今日」を yyyy-MM-dd 文字列で返す
 // 端末のタイムゾーン設定に依存せず日次リセットの境界を揃えるため
-String todayKeyJst() {
-  final jstNow = DateTime.now().toUtc().add(const Duration(hours: 9));
-  return '${jstNow.year.toString().padLeft(4, '0')}-'
-      '${jstNow.month.toString().padLeft(2, '0')}-'
-      '${jstNow.day.toString().padLeft(2, '0')}';
-}
+String todayKeyJst() => _dateKeyJst(DateTime.now().toUtc());
+
+// JST基準の「昨日」を yyyy-MM-dd 文字列で返す（連続ログイン判定に使用）
+String _yesterdayKeyJst() => _dateKeyJst(DateTime.now().toUtc().subtract(const Duration(days: 1)));
 
 // ユーザーウォレット
 class WalletState {
@@ -66,6 +72,8 @@ class WalletState {
   final int streakShieldCount; // 連勝シールドの所持数（ジェムで購入、敗北時に自動消費）
   final int dailyBonusCapExtra; // dailyBonusCapExtraDate内でジェム購入により拡張された当日の追加上限
   final String dailyBonusCapExtraDate; // dailyBonusCapExtra が対応する日付（JST, yyyy-MM-dd）
+  final int loginStreak; // 連続ログイン日数（デイリーボーナスを連続で受け取った日数）
+  final String lastLoginDate; // 直近にデイリーボーナスを受け取った日（JST, yyyy-MM-dd）。空文字=未受取
 
   const WalletState({
     this.totalPoints = 0,
@@ -79,6 +87,8 @@ class WalletState {
     this.streakShieldCount = 0,
     this.dailyBonusCapExtra = 0,
     this.dailyBonusCapExtraDate = '',
+    this.loginStreak = 0,
+    this.lastLoginDate = '',
   });
 
   WalletState copyWith({
@@ -93,6 +103,8 @@ class WalletState {
     int? streakShieldCount,
     int? dailyBonusCapExtra,
     String? dailyBonusCapExtraDate,
+    int? loginStreak,
+    String? lastLoginDate,
   }) =>
     WalletState(
       totalPoints: totalPoints ?? this.totalPoints,
@@ -106,6 +118,8 @@ class WalletState {
       streakShieldCount: streakShieldCount ?? this.streakShieldCount,
       dailyBonusCapExtra: dailyBonusCapExtra ?? this.dailyBonusCapExtra,
       dailyBonusCapExtraDate: dailyBonusCapExtraDate ?? this.dailyBonusCapExtraDate,
+      loginStreak: loginStreak ?? this.loginStreak,
+      lastLoginDate: lastLoginDate ?? this.lastLoginDate,
     );
 
   /// 連勝ボーナス: 3連勝=+5, 5連勝=+10, 7連勝+=+15
@@ -167,6 +181,32 @@ class WalletState {
         streakShieldCount: streakShieldCount + 1,
       );
 
+  // 本日まだデイリーログインボーナスを受け取っていなければtrue。
+  // これがfalseのままダイアログを出す/受取処理を呼ぶと、アプリ再起動のたびに
+  // 何度でもコインを受け取れてしまう（かつてこの日付チェック自体が存在しなかった）。
+  bool get canClaimDailyLogin => lastLoginDate != todayKeyJst();
+
+  // 本日受け取った場合に表示すべき「Day」（1〜7）。7日サイクルで報酬テーブルを繰り返す。
+  // 実際の付与はclaimDailyLogin()側で行う（このgetterは表示専用で状態を変えない）。
+  int get pendingLoginStreakDay {
+    final continuing = lastLoginDate == _yesterdayKeyJst();
+    final nextStreak = continuing ? loginStreak + 1 : 1;
+    return ((nextStreak - 1) % 7) + 1;
+  }
+
+  // デイリーログインボーナスを確定させる。前日から連続していればストリークを+1、
+  // 途切れていれば1にリセットする。本日すでに受取済みなら何もせず自分自身を返す
+  // （二重付与防止。呼び出し側でcanClaimDailyLoginを見てダイアログ表示を抑制すること）。
+  WalletState claimDailyLogin(int coins) {
+    if (!canClaimDailyLogin) return this;
+    final continuing = lastLoginDate == _yesterdayKeyJst();
+    return copyWith(
+      coinBalance: coinBalance + coins,
+      loginStreak: continuing ? loginStreak + 1 : 1,
+      lastLoginDate: todayKeyJst(),
+    );
+  }
+
   Map<String, dynamic> toMap() => {
     'totalPoints': totalPoints,
     'todayPoints': todayPoints,
@@ -179,6 +219,8 @@ class WalletState {
     'streakShieldCount': streakShieldCount,
     'dailyBonusCapExtra': dailyBonusCapExtra,
     'dailyBonusCapExtraDate': dailyBonusCapExtraDate,
+    'loginStreak': loginStreak,
+    'lastLoginDate': lastLoginDate,
     'updatedAt': FieldValue.serverTimestamp(),
   };
 
@@ -195,6 +237,8 @@ class WalletState {
       streakShieldCount: map['streakShieldCount'] ?? 0,
       dailyBonusCapExtra: map['dailyBonusCapExtra'] ?? 0,
       dailyBonusCapExtraDate: map['dailyBonusCapExtraDate'] ?? '',
+      loginStreak: map['loginStreak'] ?? 0,
+      lastLoginDate: map['lastLoginDate'] ?? '',
     );
   }
 }
@@ -327,9 +371,6 @@ Future<bool> updateWallet(String userId, WalletState wallet) async {
   }
   return false;
 }
-
-// 連続ログイン日数（1-7 でローテーション。本実装では Firebase で日付管理予定）
-final loginStreakProvider = StateProvider<int>((ref) => 1);
 
 // プレイヤーランク
 class PlayerRank {

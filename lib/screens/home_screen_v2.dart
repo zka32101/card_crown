@@ -31,28 +31,24 @@ class HomeScreenV2 extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenV2State extends ConsumerState<HomeScreenV2> {
-  bool _dailyShown = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowDailyReward());
-  }
+  bool _dailyRewardChecked = false;
 
   void _maybeShowDailyReward() {
-    if (_dailyShown || !mounted) return;
-    _dailyShown = true;
+    if (_dailyRewardChecked || !mounted) return;
+    _dailyRewardChecked = true;
+    final wallet = ref.read(walletProvider);
+    if (!wallet.canClaimDailyLogin) return; // 本日は既に受取済み
     _showDailyReward();
   }
 
   void _showDailyReward() {
-    final streak = ref.read(loginStreakProvider);
+    final day = ref.read(walletProvider).pendingLoginStreakDay;
     DailyRewardDialog.show(
       context,
-      currentDay: streak,
+      currentDay: day,
       onClaim: (coins) {
         final w = ref.read(walletProvider);
-        final updated = w.copyWith(coinBalance: w.coinBalance + coins);
+        final updated = w.claimDailyLogin(coins);
         ref.read(walletProvider.notifier).state = updated;
         final userId = ref.read(currentUserIdProvider);
         if (userId != null) updateWallet(userId, updated);
@@ -66,6 +62,15 @@ class _HomeScreenV2State extends ConsumerState<HomeScreenV2> {
     final rank = ref.watch(myPlayerRankProvider).valueOrNull ?? const PlayerRank();
     final wallet = ref.watch(walletProvider);
     final defenseDeck = ref.watch(defenseDeckProvider);
+
+    // walletProviderのハイドレーション完了（Firestoreからの実データ反映）を待ってから
+    // デイリーログイン受取可否を判定する。ハイドレーション前のデフォルト値
+    // （lastLoginDate=''）で判定すると、再起動のたびに何度でも受け取れてしまう。
+    final uid = ref.watch(currentUserIdProvider);
+    final hydratedUid = ref.watch(walletHydratedForUidProvider);
+    if (uid != null && hydratedUid == uid) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowDailyReward());
+    }
 
     return Scaffold(
       backgroundColor: Kingdom.night,
