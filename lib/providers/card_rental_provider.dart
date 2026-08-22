@@ -9,9 +9,9 @@ import 'auth_provider.dart';
 import 'collection_provider.dart';
 import 'game_state_provider.dart';
 
-// クリエイター取り分（レンタル料の70%）。functions/src/rentCard.ts の
+// クリエイター取り分（レンタル料の40%）。functions/src/rentCard.ts の
 // CREATOR_SHARE_PERCENT と同じ値（実際の配分計算はサーバー側で行う。ここでは表示用）。
-const int kRentalCreatorSharePercent = 70;
+const int kRentalCreatorSharePercent = 40;
 
 // レンタル日数プランと総額（コイン）。functions/src/rentCard.ts の RENTAL_PLANS と
 // 必ず同じ値にすること — 表示価格とサーバー請求額を一致させるため。

@@ -138,7 +138,7 @@
   "@cardRental_coinsAmount": {"placeholders":{"amount":{"type":"int"}}},
   "cardRental_publicCount": "Public: {count} cards",
   "@cardRental_publicCount": {"placeholders":{"count":{"type":"int"}}},
-  "cardRental_explanation": "Toggle a card to \"Public\" to let other players rent it. You'll earn 70% of the rental fee.",
+  "cardRental_explanation": "Toggle a card to \"Public\" to let other players rent it. You'll earn 40% of the rental fee.",
   "cardRental_costLabel": "Cost {cost}",
   "@cardRental_costLabel": {"placeholders":{"cost":{"type":"int"}}},
   "shop_receivedPackage": "You received {name}!",

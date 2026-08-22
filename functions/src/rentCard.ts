@@ -16,9 +16,10 @@ import * as admin from "firebase-admin";
 // 表示価格とサーバー請求額を一致させるため、変更する場合は両方直すこと。
 const RENTAL_PLANS: Record<number, number> = {1: 50, 7: 300, 30: 1000};
 
-// クリエイター取り分（レンタル料の70%）。
+// クリエイター取り分（レンタル料の40%）。デッキ育成の主なコイン源はバトル
+// 勝利のままにし、レンタル収益は補助的な位置づけに留めるため70%から引き下げ。
 // lib/providers/card_rental_provider.dart の kRentalCreatorSharePercent と同じ値。
-const CREATOR_SHARE_PERCENT = 70;
+const CREATOR_SHARE_PERCENT = 40;
 
 // ウォレット未作成（初回アクセス前）の場合のデフォルト残高。
 // lib/providers/game_state_provider.dart の WalletState() のデフォルトと同じ値。

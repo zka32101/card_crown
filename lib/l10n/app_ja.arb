@@ -138,7 +138,7 @@
   "@cardRental_coinsAmount": {"placeholders":{"amount":{"type":"int"}}},
   "cardRental_publicCount": "公開中: {count}枚",
   "@cardRental_publicCount": {"placeholders":{"count":{"type":"int"}}},
-  "cardRental_explanation": "トグルで「公開」にすると、他のプレイヤーがあなたのカードをレンタルできます。レンタル料の70%があなたの収益になります。",
+  "cardRental_explanation": "トグルで「公開」にすると、他のプレイヤーがあなたのカードをレンタルできます。レンタル料の40%があなたの収益になります。",
   "cardRental_costLabel": "Cost {cost}",
   "@cardRental_costLabel": {"placeholders":{"cost":{"type":"int"}}},
   "shop_receivedPackage": "{name} を受け取りました！",
