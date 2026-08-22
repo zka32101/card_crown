@@ -24,6 +24,15 @@
         { "fieldPath": "cardId", "order": "ASCENDING" },
         { "fieldPath": "rentalEnd", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "rentals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "creatorUid", "order": "ASCENDING" },
+        { "fieldPath": "cardId", "order": "ASCENDING" },
+        { "fieldPath": "rentalEnd", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

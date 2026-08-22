@@ -32,6 +32,11 @@ const CARD_LEVEL_ATTACK_BONUS = 2;
 const CARD_LEVEL_DEFENSE_BONUS = 2;
 const CARD_LEVEL_SPEED_BONUS = 1;
 
+// 1枚のカードにつき、同時に有効なレンタル契約数の上限。取り分を引き下げても
+// なお「1枚の人気カードを無数の相手に貸し続けて際限なく稼ぐ」ことができて
+// しまわないよう、貸し出し可能な人数そのものにも歯止めをかける。
+const MAX_CONCURRENT_RENTERS_PER_CARD = 3;
+
 interface RentCardRequest {
   cardId: string;
   creatorId: string;
@@ -64,6 +69,13 @@ export const rentCard = functions
     const renterWalletRef = db.collection("users").doc(renterId).collection("wallet").doc("balance");
     const creatorWalletRef = db.collection("users").doc(creatorId).collection("wallet").doc("balance");
     const rentalRef = db.collection("rentals").doc();
+    // cardIdは作成時刻ミリ秒ベース（'created_<millis>'）で、別ユーザーが同一
+    // ミリ秒に作成した場合に理論上衝突しうるため、creatorUidも合わせて絞り込み、
+    // 他人の同名IDカードのレンタルを誤って人数にカウントしないようにする。
+    const activeRentersQuery = db.collection("rentals")
+      .where("creatorUid", "==", creatorId)
+      .where("cardId", "==", cardId)
+      .where("rentalEnd", ">", admin.firestore.Timestamp.now());
 
     const creatorEarnings = Math.floor((totalCost * CREATOR_SHARE_PERCENT) / 100);
 
@@ -76,6 +88,16 @@ export const rentCard = functions
       const cardData = cardDoc.data()!;
       if (cardData.isPublic !== true) {
         throw new functions.https.HttpsError("failed-precondition", "このカードは現在レンタル公開されていません");
+      }
+
+      // 同時貸し出し人数の上限チェック（1枚の人気カードだけで際限なく
+      // 稼ぎ続けられないよう、有効なレンタル契約数に歯止めをかける）。
+      const activeRentersSnap = await tx.get(activeRentersQuery.count());
+      if (activeRentersSnap.data().count >= MAX_CONCURRENT_RENTERS_PER_CARD) {
+        throw new functions.https.HttpsError(
+          "resource-exhausted",
+          "このカードは現在貸し出し人数の上限に達しています。空きが出るまでお待ちください"
+        );
       }
 
       const renterWalletDoc = await tx.get(renterWalletRef);
