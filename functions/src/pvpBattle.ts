@@ -33,14 +33,15 @@ const CARD_LEVEL_SPEED_BONUS = 1;
 // シードカード以外（cardIdがSEED_CARDSに無い場合）は、ownerUidが所有する
 // マイカードとしてFirestoreから正本データを引く。他人のカードIDを騙って
 // 使うことはできない（常に呼び出し元本人のコレクションだけを見る）。
-async function resolveCustomCard(ownerUid: string, cardId: string): Promise<CardInput> {
+// 見つからない場合はnullを返す（呼び出し側でレンタル中カードとしての解決を試みる）。
+async function resolveCustomCard(ownerUid: string, cardId: string): Promise<CardInput | null> {
   const doc = await admin.firestore()
     .collection("users").doc(ownerUid)
     .collection("cards").doc(cardId)
     .get();
   const data = doc.data();
   if (!doc.exists || !data) {
-    throw new functions.https.HttpsError("invalid-argument", `未知のカードIDです: ${cardId}`);
+    return null;
   }
   const level: number = data.level ?? 0;
   return {
@@ -52,16 +53,46 @@ async function resolveCustomCard(ownerUid: string, cardId: string): Promise<Card
   };
 }
 
+// ownerUidが現在有効な（期限切れでない）レンタル契約を持つcardIdを、rentals/{id}に
+// rentCard Cloud Functionが書き込んだステータススナップショットから解決する。
+// 貸し手の元カードは直接読まない（貸し手が後で非公開化・削除しても、契約時点の
+// 内容でレンタルが継続する — lib/providers/card_rental_provider.dart の
+// myActiveRentalsProviderと同じ考え方）。見つからなければnullを返す。
+async function resolveRentedCard(renterUid: string, cardId: string): Promise<CardInput | null> {
+  const snapshot = await admin.firestore()
+    .collection("rentals")
+    .where("renterUid", "==", renterUid)
+    .where("cardId", "==", cardId)
+    .where("rentalEnd", ">", admin.firestore.Timestamp.now())
+    .limit(1)
+    .get();
+  if (snapshot.empty) return null;
+  const data = snapshot.docs[0].data();
+  return {
+    cardId,
+    attribute: data.attribute,
+    attackPower: data.attackPower ?? 0,
+    defensePower: data.defensePower ?? 0,
+    speed: data.speed ?? 0,
+  };
+}
+
 // クライアントからのcardId列を、実数値に解決する。まずSEED_CARDS（サーバー側の
-// 静的な正本データ）を見て、無ければ ownerUid が所有するカスタムカードとして
-// Firestoreを引く。いずれにも無いcardIdが1枚でもあれば拒否する。
+// 静的な正本データ）を見て、無ければ ownerUid が所有するカスタムカード、
+// それにも無ければ ownerUid が現在有効なレンタル契約を持つカードとしてFirestoreを引く。
+// いずれにも無いcardIdが1枚でもあれば拒否する。
 // ownerUid未指定（相手デッキ側）はSEED_CARDSのみを信頼する
 // —— pvpMatchが生成する相手デッキは常にシードカードのみで構成されるため。
 async function resolveDeck(cardIds: string[], ownerUid?: string): Promise<CardInput[]> {
   return Promise.all(cardIds.map(async (cardId) => {
     const stats = SEED_CARDS[cardId];
     if (stats) return {cardId, ...stats};
-    if (ownerUid) return resolveCustomCard(ownerUid, cardId);
+    if (ownerUid) {
+      const owned = await resolveCustomCard(ownerUid, cardId);
+      if (owned) return owned;
+      const rented = await resolveRentedCard(ownerUid, cardId);
+      if (rented) return rented;
+    }
     throw new functions.https.HttpsError("invalid-argument", `未知のカードIDです: ${cardId}`);
   }));
 }

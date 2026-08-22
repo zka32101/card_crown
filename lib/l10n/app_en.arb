@@ -204,6 +204,7 @@
   "deckSelection_selectedCardsLabel": "✓ Selected Cards",
   "deckSelection_cardsAvailable": "Choose from {count} cards",
   "deckSelection_longPressHint": "(long-press for details)",
+  "deckSelection_rentedBadge": "🔁 Rented",
   "@deckSelection_cardsAvailable": {"placeholders":{"count":{"type":"int"}}},
   "deckSelection_maxCardsReached": "You can select up to {count} cards",
   "@deckSelection_maxCardsReached": {"placeholders":{"count":{"type":"int"}}},

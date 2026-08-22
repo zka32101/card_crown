@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/user_card.dart';
 import 'auth_provider.dart';
+import 'card_rental_provider.dart';
 import 'game_state_provider.dart';
 
 // ローカル状態管理用（既存のwalletProvider/migrationStateProviderと同じパターン）。
@@ -39,6 +40,18 @@ final myCollectionProvider = Provider<List<PlayCard>>((ref) {
   final seedCards = ref.watch(allPlayCardsProvider);
   final myCards = ref.watch(myCardsProvider);
   return [...seedCards, ...myCards.map((c) => c.toPlayCard())];
+});
+
+// myCollectionProvider（マイカード画面の「所有カード」表示用）に、現在有効な
+// レンタル中カードを加えた、実際にデッキへ編成できるカード全体。
+// デッキ編成画面はこちらを使うこと — myCollectionProviderのままだと、
+// お金を払ってレンタルしたカードが実際のバトルでは一切使えないことになる。
+// 「マイカード」ギャラリー（collection_screen.dart）は所有カードのみを見せたいので
+// あえてmyCollectionProviderのままにしている（レンタル品を「所有」扱いしない）。
+final battleEligibleCardsProvider = Provider<List<PlayCard>>((ref) {
+  final owned = ref.watch(myCollectionProvider);
+  final rented = ref.watch(myActiveRentalsProvider).valueOrNull ?? [];
+  return [...owned, ...rented];
 });
 
 Future<void> saveUserCard(String userId, UserCard card) async {
