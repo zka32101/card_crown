@@ -1,6 +1,6 @@
-# card_crown
+# card_rivals
 
-A new Flutter project.
+Card Rivals - A competitive card battle game.
 
 ## Getting Started
 

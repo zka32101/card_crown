@@ -1,4 +1,4 @@
-name: iOS CI (card_crown)
+name: iOS CI (card_rivals)
 
 # コスト対策: macOSランナーは10倍課金のため、自動push起動は厳禁。
 # 解析/テストのみ自動実行し、iOSビルドは手動実行(workflow_dispatch)限定にする。
@@ -62,7 +62,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: card-crown-ios-unsigned
+          name: card-rivals-ios-unsigned
           path: build/ios/iphoneos/Runner.app.zip
           retention-days: 14
 
@@ -130,6 +130,6 @@ jobs:
       - name: Upload IPA artifact (backup)
         uses: actions/upload-artifact@v4
         with:
-          name: card-crown-ios-signed
+          name: card-rivals-ios-signed
           path: build/ios/ipa/*.ipa
           retention-days: 30
