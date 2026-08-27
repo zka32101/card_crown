@@ -3,7 +3,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/deck_preset.dart';
 import '../providers/deck_presets_provider.dart';
 import '../theme/kingdom_theme.dart';
-import '../l10n/app_localizations.dart';
 
 class DeckPresetManagerScreen extends ConsumerStatefulWidget {
   /// 選択されたプリセットのコールバック
@@ -139,7 +138,7 @@ class _DeckPresetManagerScreenState extends ConsumerState<DeckPresetManagerScree
         backgroundColor: Kingdom.nightDeep,
         title: Text(
           'プリセットを削除',
-          style: Kingdom.title(size: 18, color: Kingdom.rose),
+          style: Kingdom.title(size: 18, color: Kingdom.angerCrimson),
         ),
         content: Text(
           '「${preset.name}」を削除しますか？',
@@ -151,7 +150,7 @@ class _DeckPresetManagerScreenState extends ConsumerState<DeckPresetManagerScree
             child: const Text('キャンセル', style: TextStyle(color: Kingdom.parchment)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Kingdom.rose),
+            style: ElevatedButton.styleFrom(backgroundColor: Kingdom.angerCrimson),
             onPressed: () async {
               try {
                 await deleteDeckPreset(ref, preset.id);
@@ -347,7 +346,7 @@ class _DeckPresetManagerScreenState extends ConsumerState<DeckPresetManagerScree
                                 PopupMenuItem(
                                   child: Row(
                                     children: const [
-                                      Icon(Icons.delete, color: Kingdom.rose),
+                                      Icon(Icons.delete, color: Kingdom.angerCrimson),
                                       SizedBox(width: 8),
                                       Text('削除', style: TextStyle(color: Kingdom.parchment)),
                                     ],

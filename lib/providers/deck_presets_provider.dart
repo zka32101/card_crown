@@ -115,16 +115,6 @@ Future<String?> saveDeckPreset(
 
     if (existingPresetId != null) {
       // 既存のプリセットを更新
-      final presetData: DeckPreset = DeckPreset(
-        id: existingPresetId,
-        userId: userId,
-        name: name,
-        description: description,
-        cardIds: cardIds,
-        createdAt: DateTime.now(), // 本来はサーバーから取得すべき
-        updatedAt: now,
-      );
-
       await presetsRef.doc(existingPresetId).update({
         'name': name,
         'description': description,
@@ -133,20 +123,21 @@ Future<String?> saveDeckPreset(
       });
 
       // プロバイダをリフレッシュ
-      ref.refresh(userDeckPresetsProvider);
-      ref.refresh(deckPresetProvider(existingPresetId));
+      ref.invalidate(userDeckPresetsProvider);
+      ref.invalidate(deckPresetProvider(existingPresetId));
 
       return existingPresetId;
     } else {
       // 新しいプリセットを作成
       // 既存プリセット数をチェック
       final countSnapshot = await presetsRef.count().get();
-      if (countSnapshot.count >= maxPresetsPerUser) {
+      final count = countSnapshot.count ?? 0;
+      if (count >= maxPresetsPerUser) {
         throw Exception('デッキプリセットは最大$maxPresetsPerUser個までです');
       }
 
       final presetId = presetsRef.doc().id;
-      final presetData: DeckPreset = DeckPreset(
+      final presetData = DeckPreset(
         id: presetId,
         userId: userId,
         name: name,
@@ -159,7 +150,7 @@ Future<String?> saveDeckPreset(
       await presetsRef.doc(presetId).set(presetData.toMap());
 
       // プロバイダをリフレッシュ
-      ref.refresh(userDeckPresetsProvider);
+      ref.invalidate(userDeckPresetsProvider);
 
       return presetId;
     }
@@ -200,8 +191,8 @@ Future<void> deleteDeckPreset(
     await presetRef.delete();
 
     // プロバイダをリフレッシュ
-    ref.refresh(userDeckPresetsProvider);
-    ref.refresh(deckPresetProvider(presetId));
+    ref.invalidate(userDeckPresetsProvider);
+    ref.invalidate(deckPresetProvider(presetId));
   } catch (e) {
     debugPrint('Error deleting deck preset: $e');
     rethrow;
@@ -244,7 +235,8 @@ Future<String?> copyDeckPreset(
 
     // 既存プリセット数をチェック
     final countSnapshot = await presetsRef.count().get();
-    if (countSnapshot.count >= maxPresetsPerUser) {
+    final count = countSnapshot.count ?? 0;
+    if (count >= maxPresetsPerUser) {
       throw Exception('デッキプリセットは最大$maxPresetsPerUser個までです');
     }
 
@@ -265,7 +257,7 @@ Future<String?> copyDeckPreset(
     await presetsRef.doc(newPresetId).set(newPreset.toMap());
 
     // プロバイダをリフレッシュ
-    ref.refresh(userDeckPresetsProvider);
+    ref.invalidate(userDeckPresetsProvider);
 
     return newPresetId;
   } catch (e) {
