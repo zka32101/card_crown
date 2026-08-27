@@ -297,6 +297,350 @@ export const updateCardListing = functions.https.onCall(async (data, context) =>
   });
 });
 
+// ===== TRADE OFFERS (Phase 2) =====
+
+interface TradeCard {
+  cardId: string;
+  attribute: string;
+  cost: number;
+  cardName: Record<string, string>;
+  imageUrl: string;
+}
+
+interface TradeOffer {
+  offerId: string;
+  senderId: string;
+  senderName: string;
+  recipientId: string;
+  recipientName: string;
+  senderCardIds: string[];
+  recipientCardIds: string[];
+  status: 'pending' | 'accepted' | 'rejected' | 'expired' | 'cancelled';
+  createdAt: admin.firestore.Timestamp;
+  respondedAt?: admin.firestore.Timestamp;
+  expiresAt: admin.firestore.Timestamp;
+  message?: string;
+  senderCards: TradeCard[];
+  recipientCards: TradeCard[];
+}
+
+/**
+ * Create a trade offer between two players
+ * No fees for P2P trades
+ */
+export const createTradeOffer = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new Error('Not authenticated');
+
+  const userId = context.auth.uid;
+  const { recipientId, senderCardIds, recipientCardIds, message } = data;
+
+  // Validation
+  if (!recipientId || !Array.isArray(senderCardIds) || !Array.isArray(recipientCardIds)) {
+    throw new Error('Invalid trade offer data');
+  }
+
+  if (senderCardIds.length === 0 || recipientCardIds.length === 0) {
+    throw new Error('Trade must include at least one card per side');
+  }
+
+  if (senderCardIds.length > TRADE_OFFER_MAX_CARDS_PER_SIDE || recipientCardIds.length > TRADE_OFFER_MAX_CARDS_PER_SIDE) {
+    throw new Error(`Maximum ${TRADE_OFFER_MAX_CARDS_PER_SIDE} cards per side`);
+  }
+
+  if (userId === recipientId) {
+    throw new Error('Cannot trade with yourself');
+  }
+
+  return db.runTransaction(async (transaction) => {
+    // Verify sender owns all sender cards
+    const senderCardPromises = senderCardIds.map((cardId) =>
+      db.collection('users').doc(userId).collection('cards').doc(cardId).get()
+    );
+    const senderCardDocs = await Promise.all(senderCardPromises);
+
+    for (const doc of senderCardDocs) {
+      if (!doc.exists) throw new Error('Sender card not found or not owned');
+    }
+
+    // Verify recipient owns all recipient cards
+    const recipientCardPromises = recipientCardIds.map((cardId) =>
+      db.collection('users').doc(recipientId).collection('cards').doc(cardId).get()
+    );
+    const recipientCardDocs = await Promise.all(recipientCardPromises);
+
+    for (const doc of recipientCardDocs) {
+      if (!doc.exists) throw new Error('Recipient card not found or not owned');
+    }
+
+    // Get user names
+    const senderDoc = await transaction.get(db.collection('users').doc(userId));
+    const recipientDoc = await transaction.get(db.collection('users').doc(recipientId));
+
+    const senderName = senderDoc.data()?.displayName || 'Unknown';
+    const recipientName = recipientDoc.data()?.displayName || 'Unknown';
+
+    // Extract card details for caching
+    const senderCards: TradeCard[] = senderCardDocs.map((doc) => {
+      const data = doc.data() as any;
+      return {
+        cardId: doc.id,
+        attribute: data.attribute || '',
+        cost: data.cost || 0,
+        cardName: data.cardName || {},
+        imageUrl: data.imageUrl || '',
+      };
+    });
+
+    const recipientCards: TradeCard[] = recipientCardDocs.map((doc) => {
+      const data = doc.data() as any;
+      return {
+        cardId: doc.id,
+        attribute: data.attribute || '',
+        cost: data.cost || 0,
+        cardName: data.cardName || {},
+        imageUrl: data.imageUrl || '',
+      };
+    });
+
+    // Create trade offer
+    const offerId = db.collection('trade_offers').doc().id;
+    const now = admin.firestore.Timestamp.now();
+    const expiresAt = new admin.firestore.Timestamp(
+      now.seconds + TRADE_OFFER_EXPIRY_DAYS * 24 * 3600,
+      now.nanoseconds
+    );
+
+    const tradeOffer: TradeOffer = {
+      offerId,
+      senderId: userId,
+      senderName,
+      recipientId,
+      recipientName,
+      senderCardIds,
+      recipientCardIds,
+      status: 'pending',
+      createdAt: now,
+      expiresAt,
+      message: message || undefined,
+      senderCards,
+      recipientCards,
+    };
+
+    // Save to sender's collection
+    transaction.set(db.collection('users').doc(userId).collection('marketplace/trade_offers').doc(offerId), tradeOffer);
+
+    // Save to recipient's collection (for visibility)
+    transaction.set(db.collection('users').doc(recipientId).collection('marketplace/trade_offers').doc(offerId), tradeOffer);
+
+    // Save to global collection
+    transaction.set(db.collection('marketplace/trade_offers').doc(offerId), tradeOffer);
+
+    return { offerId, success: true };
+  });
+});
+
+/**
+ * Respond to a trade offer (accept or reject)
+ */
+export const respondToTradeOffer = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new Error('Not authenticated');
+
+  const userId = context.auth.uid;
+  const { offerId, action } = data;
+
+  if (!offerId || !['accept', 'reject'].includes(action)) {
+    throw new Error('Invalid response data');
+  }
+
+  return db.runTransaction(async (transaction) => {
+    const offerRef = db.collection('marketplace/trade_offers').doc(offerId);
+    const offerDoc = await transaction.get(offerRef);
+
+    if (!offerDoc.exists) throw new Error('Trade offer not found');
+
+    const offer = offerDoc.data() as TradeOffer;
+
+    if (offer.status !== 'pending') {
+      throw new Error('Trade offer is no longer pending');
+    }
+
+    if (userId !== offer.recipientId) {
+      throw new Error('Only the recipient can respond');
+    }
+
+    const now = admin.firestore.Timestamp.now();
+    if (now.seconds > offer.expiresAt.seconds) {
+      throw new Error('Trade offer has expired');
+    }
+
+    if (action === 'reject') {
+      // Simply update status to rejected
+      const rejectedAt = admin.firestore.Timestamp.now();
+      transaction.update(offerRef, {
+        status: 'rejected',
+        respondedAt: rejectedAt,
+      });
+
+      // Update in both user collections
+      transaction.update(
+        db.collection('users').doc(offer.senderId).collection('marketplace/trade_offers').doc(offerId),
+        { status: 'rejected', respondedAt: rejectedAt }
+      );
+      transaction.update(
+        db.collection('users').doc(offer.recipientId).collection('marketplace/trade_offers').doc(offerId),
+        { status: 'rejected', respondedAt: rejectedAt }
+      );
+
+      return { success: true, message: 'Trade rejected' };
+    }
+
+    // Accept: perform the card swap
+    // Verify cards still exist (final check)
+    for (const cardId of offer.senderCardIds) {
+      const cardRef = db.collection('users').doc(offer.senderId).collection('cards').doc(cardId);
+      const cardDoc = await transaction.get(cardRef);
+      if (!cardDoc.exists) throw new Error('Sender card no longer exists');
+    }
+
+    for (const cardId of offer.recipientCardIds) {
+      const cardRef = db.collection('users').doc(offer.recipientId).collection('cards').doc(cardId);
+      const cardDoc = await transaction.get(cardRef);
+      if (!cardDoc.exists) throw new Error('Recipient card no longer exists');
+    }
+
+    // Transfer sender cards to recipient
+    for (const cardId of offer.senderCardIds) {
+      const sourceRef = db.collection('users').doc(offer.senderId).collection('cards').doc(cardId);
+      const destRef = db.collection('users').doc(offer.recipientId).collection('cards').doc(cardId);
+      const cardData = await transaction.get(sourceRef);
+      transaction.set(destRef, cardData.data());
+      transaction.delete(sourceRef);
+    }
+
+    // Transfer recipient cards to sender
+    for (const cardId of offer.recipientCardIds) {
+      const sourceRef = db.collection('users').doc(offer.recipientId).collection('cards').doc(cardId);
+      const destRef = db.collection('users').doc(offer.senderId).collection('cards').doc(cardId);
+      const cardData = await transaction.get(sourceRef);
+      transaction.set(destRef, cardData.data());
+      transaction.delete(sourceRef);
+    }
+
+    // Update trade offer status
+    transaction.update(offerRef, {
+      status: 'accepted',
+      respondedAt: now,
+    });
+
+    // Update in both user collections
+    transaction.update(
+      db.collection('users').doc(offer.senderId).collection('marketplace/trade_offers').doc(offerId),
+      { status: 'accepted', respondedAt: now }
+    );
+    transaction.update(
+      db.collection('users').doc(offer.recipientId).collection('marketplace/trade_offers').doc(offerId),
+      { status: 'accepted', respondedAt: now }
+    );
+
+    // Create transaction records for both players (0% fee)
+    const transactionId1 = db.collection('transactions').doc().id;
+    const senderTransaction: MarketplaceTransaction = {
+      transactionId: transactionId1,
+      type: 'trade_accepted',
+      playerId: offer.senderId,
+      coinsDelta: 0,
+      gemsDelta: 0,
+      transactionFeeCoins: 0,
+      relatedListingId: offerId,
+      counterpartyId: offer.recipientId,
+      counterpartyName: offer.recipientName,
+      createdAt: now,
+      isSuccessful: true,
+      metadata: {
+        cardsGiven: offer.senderCardIds.length,
+        cardsReceived: offer.recipientCardIds.length,
+      },
+    };
+
+    const transactionId2 = db.collection('transactions').doc().id;
+    const recipientTransaction: MarketplaceTransaction = {
+      transactionId: transactionId2,
+      type: 'trade_accepted',
+      playerId: offer.recipientId,
+      coinsDelta: 0,
+      gemsDelta: 0,
+      transactionFeeCoins: 0,
+      relatedListingId: offerId,
+      counterpartyId: offer.senderId,
+      counterpartyName: offer.senderName,
+      createdAt: now,
+      isSuccessful: true,
+      metadata: {
+        cardsGiven: offer.recipientCardIds.length,
+        cardsReceived: offer.senderCardIds.length,
+      },
+    };
+
+    transaction.set(
+      db.collection('users').doc(offer.senderId).collection('marketplace/transactions').doc(transactionId1),
+      senderTransaction
+    );
+    transaction.set(
+      db.collection('users').doc(offer.recipientId).collection('marketplace/transactions').doc(transactionId2),
+      recipientTransaction
+    );
+
+    return { success: true, message: 'Trade completed!' };
+  });
+});
+
+/**
+ * Cancel a trade offer (only sender can cancel pending offers)
+ */
+export const cancelTradeOffer = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new Error('Not authenticated');
+
+  const userId = context.auth.uid;
+  const { offerId } = data;
+
+  if (!offerId) throw new Error('Invalid offerId');
+
+  return db.runTransaction(async (transaction) => {
+    const offerRef = db.collection('marketplace/trade_offers').doc(offerId);
+    const offerDoc = await transaction.get(offerRef);
+
+    if (!offerDoc.exists) throw new Error('Trade offer not found');
+
+    const offer = offerDoc.data() as TradeOffer;
+
+    if (offer.senderId !== userId) {
+      throw new Error('Only the sender can cancel');
+    }
+
+    if (offer.status !== 'pending') {
+      throw new Error('Can only cancel pending offers');
+    }
+
+    // Update status to cancelled
+    transaction.update(offerRef, {
+      status: 'cancelled',
+      respondedAt: admin.firestore.Timestamp.now(),
+    });
+
+    // Update in both user collections
+    transaction.update(
+      db.collection('users').doc(offer.senderId).collection('marketplace/trade_offers').doc(offerId),
+      { status: 'cancelled', respondedAt: admin.firestore.Timestamp.now() }
+    );
+    transaction.update(
+      db.collection('users').doc(offer.recipientId).collection('marketplace/trade_offers').doc(offerId),
+      { status: 'cancelled', respondedAt: admin.firestore.Timestamp.now() }
+    );
+
+    return { success: true, message: 'Trade offer cancelled' };
+  });
+});
+
 // ===== CLEANUP JOBS =====
 
 /**

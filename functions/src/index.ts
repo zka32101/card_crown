@@ -37,4 +37,7 @@ export {
   delistCard,
   updateCardListing,
   expireListings,
+  createTradeOffer,
+  respondToTradeOffer,
+  cancelTradeOffer,
 } from "./marketplace";
