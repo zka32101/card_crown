@@ -587,7 +587,7 @@ class _KingdomActionTile extends StatelessWidget {
       ),
     );
 
-    return fullWidth ? tile : tile;
+    return tile;
   }
 }
 
