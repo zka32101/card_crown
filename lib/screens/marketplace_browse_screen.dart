@@ -3,12 +3,14 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../providers/marketplace_provider.dart';
 import '../models/marketplace_models.dart';
 import '../theme/kingdom_theme.dart';
+import '../l10n/app_localizations.dart';
 
 class MarketplaceBrowseScreen extends ConsumerWidget {
   const MarketplaceBrowseScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final listingsAsync = ref.watch(activeCardListingsProvider);
 
     return listingsAsync.when(
@@ -25,12 +27,12 @@ class MarketplaceBrowseScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'No listings yet',
+                  t.marketplace_noListings,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Check back later for new cards',
+                  t.marketplace_checkBackLater,
                   style: Theme.of(context).textTheme.bodyMedium,
                   textAlign: TextAlign.center,
                 ),
@@ -57,25 +59,26 @@ class MarketplaceBrowseScreen extends ConsumerWidget {
   }
 
   void _showBuyConfirmDialog(BuildContext context, WidgetRef ref, CardListing listing) {
+    final t = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Purchase'),
+        title: Text(t.marketplace_confirmPurchase),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Card: ${listing.cardName['en'] ?? 'Unknown'}'),
+            Text('${t.marketplace_cardLabel}: ${listing.cardName['en'] ?? 'Unknown'}'),
             const SizedBox(height: 8),
-            Text('Price: ${listing.price} 🪙'),
+            Text('${t.marketplace_priceLabel}: ${listing.price} 🪙'),
             const SizedBox(height: 8),
             Text(
-              'Platform Fee: ${listing.platformFee} 🪙 (10%)',
+              '${t.marketplace_platformFeeLabel}: ${listing.platformFee} 🪙 (10%)',
               style: const TextStyle(fontSize: 12, color: Colors.amber),
             ),
             const SizedBox(height: 8),
             Text(
-              'Total: ${listing.price} 🪙',
+              '${t.marketplace_totalLabel}: ${listing.price} 🪙',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
@@ -83,14 +86,14 @@ class MarketplaceBrowseScreen extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(t.marketplace_cancel),
           ),
           FilledButton(
             onPressed: () async {
               Navigator.pop(context);
               _performBuy(context, ref, listing);
             },
-            child: const Text('Buy'),
+            child: Text(t.marketplace_buy),
           ),
         ],
       ),
@@ -98,20 +101,21 @@ class MarketplaceBrowseScreen extends ConsumerWidget {
   }
 
   void _performBuy(BuildContext context, WidgetRef ref, CardListing listing) async {
+    final t = AppLocalizations.of(context)!;
     final success = await buyCardFlow(ref, listing.listingId);
 
     if (context.mounted) {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Card purchased successfully!'),
+            content: Text(t.marketplace_purchaseSuccessTitle),
             backgroundColor: Colors.green,
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to purchase card'),
+          SnackBar(
+            content: Text(t.marketplace_purchaseFailedTitle),
             backgroundColor: Colors.red,
           ),
         );
@@ -161,7 +165,7 @@ class CardListingTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'by ${listing.sellerName}',
+                        '${AppLocalizations.of(context)!.marketplace_byLabel} ${listing.sellerName}',
                         style: TextStyle(
                           fontSize: 12,
                           color: Kingdom.parchment.withValues(alpha: 0.6),
@@ -191,13 +195,13 @@ class CardListingTile extends StatelessWidget {
             // Card Stats
             Row(
               children: [
-                _StatChip('Cost ${listing.cost}', Kingdom.sadnessIndigo),
+                _StatChip('${AppLocalizations.of(context)!.marketplace_costLabel} ${listing.cost}', Kingdom.sadnessIndigo),
                 const SizedBox(width: Kingdom.spaceXs),
                 _StatChip(listing.attribute, Kingdom.joyGold),
                 const SizedBox(width: Kingdom.spaceXs),
                 Expanded(
                   child: Text(
-                    '${listing.views} views',
+                    '${listing.views} ${AppLocalizations.of(context)!.marketplace_viewsLabel}',
                     style: TextStyle(
                       fontSize: 12,
                       color: Kingdom.parchment.withValues(alpha: 0.5),
@@ -214,7 +218,7 @@ class CardListingTile extends StatelessWidget {
               width: double.infinity,
               child: FilledButton(
                 onPressed: onBuy,
-                child: const Text('Buy Now'),
+                child: Text(AppLocalizations.of(context)!.marketplace_buyNow),
               ),
             ),
           ],

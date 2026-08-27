@@ -4,12 +4,14 @@ import '../providers/marketplace_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/marketplace_models.dart';
 import '../theme/kingdom_theme.dart';
+import '../l10n/app_localizations.dart';
 
 class MarketplaceTradeOffersScreen extends ConsumerWidget {
   const MarketplaceTradeOffersScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final offersAsync = ref.watch(myTradeOffersProvider);
 
     return offersAsync.when(
@@ -26,12 +28,12 @@ class MarketplaceTradeOffersScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'No trade offers',
+                  t.marketplace_noTradeOffers,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Send or receive trade offers with other players',
+                  t.marketplace_noTradeOffersDesc,
                   style: Theme.of(context).textTheme.bodyMedium,
                   textAlign: TextAlign.center,
                 ),
@@ -41,7 +43,7 @@ class MarketplaceTradeOffersScreen extends ConsumerWidget {
                     // TODO: Navigate to create trade offer screen
                   },
                   icon: const Icon(Icons.add),
-                  label: const Text('Send Trade Offer'),
+                  label: Text(t.marketplace_sendTradeOffer),
                 ),
               ],
             ),
@@ -57,7 +59,7 @@ class MarketplaceTradeOffersScreen extends ConsumerWidget {
           children: [
             // Pending Offers Section
             if (sentOffers.isNotEmpty || receivedOffers.isNotEmpty) ...[
-              _SectionHeader('Pending Offers'),
+              _SectionHeader('${t.marketplace_askingFor}'),
               ...offers
                   .where((o) => o.status == 'pending')
                   .map((offer) => TradeOfferTile(offer: offer)),
@@ -66,7 +68,7 @@ class MarketplaceTradeOffersScreen extends ConsumerWidget {
 
             // Completed Trades Section
             if (completedOffers.isNotEmpty) ...[
-              _SectionHeader('Completed (${completedOffers.length})'),
+              _SectionHeader('${t.marketplace_completed} (${completedOffers.length})'),
               ...completedOffers.map((offer) => CompletedTradeOfferTile(offer: offer)),
             ],
 
@@ -79,7 +81,7 @@ class MarketplaceTradeOffersScreen extends ConsumerWidget {
                     // TODO: Navigate to create trade offer screen
                   },
                   icon: const Icon(Icons.add),
-                  label: const Text('Send Trade Offer'),
+                  label: Text(t.marketplace_sendTradeOffer),
                 ),
               ),
           ],
@@ -117,7 +119,7 @@ class TradeOfferTile extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isIncoming ? 'Trade from ${offer.senderName}' : 'Trade to ${offer.recipientName}',
+                        isIncoming ? '${AppLocalizations.of(context)!.marketplace_tradeFrom} ${offer.senderName}' : '${AppLocalizations.of(context)!.marketplace_tradeTo} ${offer.recipientName}',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                       ),
                       const SizedBox(height: 4),
@@ -129,7 +131,7 @@ class TradeOfferTile extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          '${offer.daysRemaining}d remaining',
+                          AppLocalizations.of(context)!.marketplace_daysRemaining(offer.daysRemaining),
                           style: TextStyle(fontSize: 11, color: Kingdom.joyGold),
                         ),
                       ),
@@ -149,7 +151,7 @@ class TradeOfferTile extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isIncoming ? 'Offering' : 'Sending',
+                        isIncoming ? AppLocalizations.of(context)!.marketplace_offering : AppLocalizations.of(context)!.marketplace_sending,
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -175,7 +177,7 @@ class TradeOfferTile extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        isIncoming ? 'Asking for' : 'Receiving',
+                        isIncoming ? AppLocalizations.of(context)!.marketplace_askingFor : AppLocalizations.of(context)!.marketplace_receiving,
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -220,14 +222,14 @@ class TradeOfferTile extends ConsumerWidget {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => _showRejectConfirm(context, ref, offer),
-                      child: const Text('Reject'),
+                      child: Text(AppLocalizations.of(context)!.marketplace_reject),
                     ),
                   ),
                   const SizedBox(width: Kingdom.spaceSm),
                   Expanded(
                     child: FilledButton(
                       onPressed: () => _showAcceptConfirm(context, ref, offer),
-                      child: const Text('Accept'),
+                      child: Text(AppLocalizations.of(context)!.marketplace_accept),
                     ),
                   ),
                 ],
@@ -241,7 +243,7 @@ class TradeOfferTile extends ConsumerWidget {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.close, size: 16),
-                  label: const Text('Cancel Offer'),
+                  label: Text(AppLocalizations.of(context)!.marketplace_cancelTradeTitle),
                   onPressed: () => _showCancelConfirm(context, ref, offer),
                 ),
               ),
@@ -253,20 +255,21 @@ class TradeOfferTile extends ConsumerWidget {
   }
 
   void _showAcceptConfirm(BuildContext context, WidgetRef ref, TradeOffer offer) {
+    final t = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Accept Trade Offer?'),
+        title: Text(t.marketplace_acceptTradeTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('You will give ${offer.recipientCards.length} card(s)'),
+            Text(t.marketplace_willGive(offer.recipientCards.length)),
             const SizedBox(height: 8),
-            Text('You will receive ${offer.senderCards.length} card(s) from ${offer.senderName}'),
+            Text(t.marketplace_willReceive(offer.senderCards.length, offer.senderName)),
             const SizedBox(height: 16),
             Text(
-              'This action cannot be undone.',
+              t.marketplace_cannotUndo,
               style: TextStyle(fontSize: 12, color: Colors.orange),
             ),
           ],
@@ -274,7 +277,7 @@ class TradeOfferTile extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(t.marketplace_cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -283,13 +286,13 @@ class TradeOfferTile extends ConsumerWidget {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(success ? 'Trade accepted!' : 'Failed to accept trade'),
+                    content: Text(success ? t.marketplace_tradeAccepted : t.marketplace_acceptFailed),
                     backgroundColor: success ? Colors.green : Colors.red,
                   ),
                 );
               }
             },
-            child: const Text('Accept'),
+            child: Text(t.marketplace_accept),
           ),
         ],
       ),
@@ -297,15 +300,16 @@ class TradeOfferTile extends ConsumerWidget {
   }
 
   void _showRejectConfirm(BuildContext context, WidgetRef ref, TradeOffer offer) {
+    final t = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reject Trade Offer?'),
-        content: Text('You are declining the trade offer from ${offer.senderName}.'),
+        title: Text(t.marketplace_rejectTradeTitle),
+        content: Text(t.marketplace_rejectDesc(offer.senderName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(t.marketplace_cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -314,13 +318,13 @@ class TradeOfferTile extends ConsumerWidget {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(success ? 'Trade rejected' : 'Failed to reject trade'),
+                    content: Text(success ? t.marketplace_tradeRejected : t.marketplace_rejectFailed),
                     backgroundColor: success ? Colors.green : Colors.red,
                   ),
                 );
               }
             },
-            child: const Text('Reject'),
+            child: Text(t.marketplace_reject),
           ),
         ],
       ),
@@ -328,15 +332,16 @@ class TradeOfferTile extends ConsumerWidget {
   }
 
   void _showCancelConfirm(BuildContext context, WidgetRef ref, TradeOffer offer) {
+    final t = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cancel Trade Offer?'),
-        content: Text('You are cancelling your trade offer to ${offer.recipientName}.'),
+        title: Text(t.marketplace_cancelTradeTitle),
+        content: Text(t.marketplace_cancelDesc(offer.recipientName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Keep'),
+            child: Text(t.marketplace_keep),
           ),
           FilledButton(
             onPressed: () async {
@@ -345,13 +350,13 @@ class TradeOfferTile extends ConsumerWidget {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(success ? 'Trade offer cancelled' : 'Failed to cancel'),
+                    content: Text(success ? t.marketplace_tradeCancelled : t.marketplace_cancelFailed),
                     backgroundColor: success ? Colors.green : Colors.red,
                   ),
                 );
               }
             },
-            child: const Text('Cancel'),
+            child: Text(t.marketplace_cancel),
           ),
         ],
       ),
@@ -366,8 +371,9 @@ class CompletedTradeOfferTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final statusColor = offer.status == 'accepted' ? Colors.green : Colors.orange;
-    final statusLabel = offer.status == 'accepted' ? 'Completed' : offer.status.capitalize();
+    final statusLabel = offer.status == 'accepted' ? t.marketplace_completed : offer.status.capitalize();
 
     return Card(
       color: Kingdom.nightDeep.withValues(alpha: 0.6),

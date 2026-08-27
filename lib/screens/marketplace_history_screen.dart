@@ -3,12 +3,14 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../providers/marketplace_provider.dart';
 import '../models/marketplace_models.dart';
 import '../theme/kingdom_theme.dart';
+import '../l10n/app_localizations.dart';
 
 class MarketplaceHistoryScreen extends ConsumerWidget {
   const MarketplaceHistoryScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final historyAsync = ref.watch(marketplaceHistoryProvider);
 
     return historyAsync.when(
@@ -25,12 +27,12 @@ class MarketplaceHistoryScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'No transactions yet',
+                  t.marketplace_noHistory,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Your marketplace activity will appear here',
+                  t.marketplace_historyDesc,
                   style: Theme.of(context).textTheme.bodyMedium,
                   textAlign: TextAlign.center,
                 ),
@@ -61,7 +63,8 @@ class TransactionHistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final typeLabel = _getTypeLabel(transaction.type);
+    final t = AppLocalizations.of(context)!;
+    final typeLabel = _getTypeLabel(transaction.type, t);
     final typeIcon = _getTypeIcon(transaction.type);
     final isIncome = transaction.coinsDelta > 0 || transaction.gemsDelta > 0;
     final deltaDisplay = _formatDelta(transaction);
@@ -107,7 +110,7 @@ class TransactionHistoryTile extends StatelessWidget {
                             if (transaction.counterpartyName != null) ...[
                               const SizedBox(height: 4),
                               Text(
-                                'with ${transaction.counterpartyName}',
+                                t.marketplace_with(transaction.counterpartyName!),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Kingdom.parchment.withValues(alpha: 0.6),
@@ -134,7 +137,7 @@ class TransactionHistoryTile extends StatelessWidget {
                     if (transaction.transactionFeeCoins > 0) ...[
                       const SizedBox(height: 4),
                       Text(
-                        'Fee: ${transaction.transactionFeeCoins}🪙',
+                        t.marketplace_fee(transaction.transactionFeeCoins),
                         style: TextStyle(
                           fontSize: 10,
                           color: Kingdom.parchment.withValues(alpha: 0.5),
@@ -165,7 +168,7 @@ class TransactionHistoryTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      'Failed',
+                      t.marketplace_failed,
                       style: TextStyle(fontSize: 10, color: Kingdom.angerCrimson),
                     ),
                   ),
@@ -177,16 +180,16 @@ class TransactionHistoryTile extends StatelessWidget {
     );
   }
 
-  String _getTypeLabel(String type) {
+  String _getTypeLabel(String type, AppLocalizations t) {
     switch (type) {
       case 'card_sale':
-        return 'Card Sale';
+        return t.marketplace_cardSale;
       case 'trade_accepted':
-        return 'Trade Completed';
+        return t.marketplace_tradeCompleted;
       case 'currency_exchange':
-        return 'Currency Exchange';
+        return t.marketplace_currencyExchange;
       default:
-        return 'Transaction';
+        return t.marketplace_transaction;
     }
   }
 

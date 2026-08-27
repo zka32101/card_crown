@@ -3,12 +3,14 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../providers/marketplace_provider.dart';
 import '../models/marketplace_models.dart';
 import '../theme/kingdom_theme.dart';
+import '../l10n/app_localizations.dart';
 
 class MarketplaceCurrencyScreen extends ConsumerWidget {
   const MarketplaceCurrencyScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     return DefaultTabController(
       length: 2,
       child: Column(
@@ -17,9 +19,9 @@ class MarketplaceCurrencyScreen extends ConsumerWidget {
             labelColor: Kingdom.gilt,
             unselectedLabelColor: Kingdom.parchment.withValues(alpha: 0.6),
             indicatorColor: Kingdom.gilt,
-            tabs: const [
-              Tab(text: 'Buy Gems 💎'),
-              Tab(text: 'Sell Gems 💎'),
+            tabs: [
+              Tab(text: t.marketplace_buyGems),
+              Tab(text: t.marketplace_sellGems),
             ],
           ),
           Expanded(
@@ -39,6 +41,7 @@ class MarketplaceCurrencyScreen extends ConsumerWidget {
 class _BuyGemsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final listings = ref.watch(currencyListingsByTypeProvider('sell_gems'));
 
     if (listings.isEmpty) {
@@ -53,12 +56,12 @@ class _BuyGemsTab extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'No gem sellers',
+              t.marketplace_noSellers,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              'No players are currently selling gems',
+              t.marketplace_noSellersDesc,
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
@@ -85,26 +88,27 @@ class _BuyGemsTab extends ConsumerWidget {
   }
 
   void _showFillDialog(BuildContext context, WidgetRef ref, CurrencyListing listing, String action) {
+    final t = AppLocalizations.of(context)!;
     final maxAmount = listing.amount;
     final amountController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Buy Gems'),
+        title: Text(t.marketplace_buyGems),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Available: $maxAmount gems'),
+            Text(t.marketplace_available(maxAmount, 'gems')),
             const SizedBox(height: 8),
-            Text('Price: ${listing.price} 🪙 per gem'),
+            Text(t.marketplace_price(listing.price, 'gem')),
             const SizedBox(height: 16),
             TextField(
               controller: amountController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                hintText: 'Amount (1-$maxAmount)',
+                hintText: t.marketplace_amount(maxAmount),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
@@ -113,14 +117,14 @@ class _BuyGemsTab extends ConsumerWidget {
             Builder(builder: (ctx) {
               int amount = int.tryParse(amountController.text) ?? 0;
               int total = amount * listing.price;
-              return Text('Total: $total 🪙');
+              return Text(t.marketplace_total(total));
             }),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(t.marketplace_cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -128,7 +132,7 @@ class _BuyGemsTab extends ConsumerWidget {
               if (amount == null || amount <= 0 || amount > maxAmount) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Invalid amount')),
+                    SnackBar(content: Text(t.marketplace_invalidAmount)),
                   );
                 }
                 return;
@@ -139,13 +143,13 @@ class _BuyGemsTab extends ConsumerWidget {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(success ? 'Purchase successful!' : 'Purchase failed'),
+                    content: Text(success ? t.marketplace_purchaseSuccess : t.marketplace_purchaseFailed),
                     backgroundColor: success ? Colors.green : Colors.red,
                   ),
                 );
               }
             },
-            child: const Text('Buy'),
+            child: Text(t.marketplace_buy),
           ),
         ],
       ),
@@ -156,6 +160,7 @@ class _BuyGemsTab extends ConsumerWidget {
 class _SellGemsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final listings = ref.watch(currencyListingsByTypeProvider('buy_gems'));
 
     if (listings.isEmpty) {
@@ -170,12 +175,12 @@ class _SellGemsTab extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'No gem buyers',
+              t.marketplace_noBuyers,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              'No players are currently buying gems',
+              t.marketplace_noBuyersDesc,
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
@@ -185,7 +190,7 @@ class _SellGemsTab extends ConsumerWidget {
                 // TODO: Navigate to create sell gems listing
               },
               icon: const Icon(Icons.add),
-              label: const Text('Create Sell Listing'),
+              label: Text(t.marketplace_createSellListing),
             ),
           ],
         ),
@@ -210,7 +215,7 @@ class _SellGemsTab extends ConsumerWidget {
               // TODO: Navigate to create sell gems listing
             },
             icon: const Icon(Icons.add),
-            label: const Text('Create Sell Listing'),
+            label: Text(t.marketplace_createSellListing),
           ),
         ),
       ],
@@ -218,26 +223,30 @@ class _SellGemsTab extends ConsumerWidget {
   }
 
   void _showFillDialog(BuildContext context, WidgetRef ref, CurrencyListing listing, String action) {
+    final t = AppLocalizations.of(context)!;
     final maxAmount = listing.amount;
     final amountController = TextEditingController();
+    final isSell = action == 'sell';
+    final currencyType = isSell ? 'coins' : 'gems';
+    final currencyEmoji = isSell ? '🪙' : '💎';
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(action == 'sell' ? 'Sell Gems' : 'Buy Coins'),
+        title: Text(isSell ? t.marketplace_sellGems : t.marketplace_buyGems),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Available: $maxAmount ${action == 'sell' ? 'coins' : 'gems'}'),
+            Text(t.marketplace_available(maxAmount, currencyType)),
             const SizedBox(height: 8),
-            Text('Price: ${listing.price} ${action == 'sell' ? '🪙' : '💎'} per ${action == 'sell' ? 'gem' : 'coin'}'),
+            Text(t.marketplace_price(listing.price, isSell ? 'gem' : 'coin')),
             const SizedBox(height: 16),
             TextField(
               controller: amountController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                hintText: 'Amount (1-$maxAmount)',
+                hintText: t.marketplace_amount(maxAmount),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
@@ -246,14 +255,14 @@ class _SellGemsTab extends ConsumerWidget {
             Builder(builder: (ctx) {
               int amount = int.tryParse(amountController.text) ?? 0;
               int total = amount * listing.price;
-              return Text('You receive: $total ${action == 'sell' ? '🪙' : '💎'}');
+              return Text(t.marketplace_youReceive(total, currencyEmoji));
             }),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(t.marketplace_cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -261,7 +270,7 @@ class _SellGemsTab extends ConsumerWidget {
               if (amount == null || amount <= 0 || amount > maxAmount) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Invalid amount')),
+                    SnackBar(content: Text(t.marketplace_invalidAmount)),
                   );
                 }
                 return;
@@ -272,13 +281,13 @@ class _SellGemsTab extends ConsumerWidget {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(success ? 'Exchange successful!' : 'Exchange failed'),
+                    content: Text(success ? t.marketplace_exchangeSuccess : t.marketplace_exchangeFailed),
                     backgroundColor: success ? Colors.green : Colors.red,
                   ),
                 );
               }
             },
-            child: Text(action == 'sell' ? 'Sell' : 'Buy'),
+            child: Text(isSell ? t.marketplace_sell : t.marketplace_buy),
           ),
         ],
       ),

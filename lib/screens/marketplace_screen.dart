@@ -43,7 +43,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen>
     return Scaffold(
       backgroundColor: Kingdom.night,
       appBar: AppBar(
-        title: const Text('Marketplace'),
+        title: Text(t.marketplace_title),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Kingdom.nightDeep,
@@ -56,10 +56,10 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen>
             Tab(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.shopping_bag, size: 18),
-                  SizedBox(height: 2),
-                  Text('Browse', style: TextStyle(fontSize: 11)),
+                children: [
+                  const Icon(Icons.shopping_bag, size: 18),
+                  const SizedBox(height: 2),
+                  Text(t.marketplace_browse, style: const TextStyle(fontSize: 11)),
                 ],
               ),
             ),
@@ -89,7 +89,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen>
                     ],
                   ),
                   const SizedBox(height: 2),
-                  const Text('Listings', style: TextStyle(fontSize: 11)),
+                  Text(t.marketplace_listings, style: const TextStyle(fontSize: 11)),
                 ],
               ),
             ),
@@ -119,27 +119,27 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen>
                     ],
                   ),
                   const SizedBox(height: 2),
-                  const Text('Trades', style: TextStyle(fontSize: 11)),
+                  Text(t.marketplace_trades, style: const TextStyle(fontSize: 11)),
                 ],
               ),
             ),
             Tab(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.currency_exchange, size: 18),
-                  SizedBox(height: 2),
-                  Text('Currency', style: TextStyle(fontSize: 11)),
+                children: [
+                  const Icon(Icons.currency_exchange, size: 18),
+                  const SizedBox(height: 2),
+                  Text(t.marketplace_currency, style: const TextStyle(fontSize: 11)),
                 ],
               ),
             ),
             Tab(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.history, size: 18),
-                  SizedBox(height: 2),
-                  Text('History', style: TextStyle(fontSize: 11)),
+                children: [
+                  const Icon(Icons.history, size: 18),
+                  const SizedBox(height: 2),
+                  Text(t.marketplace_history, style: const TextStyle(fontSize: 11)),
                 ],
               ),
             ),
