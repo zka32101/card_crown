@@ -14,7 +14,6 @@ class SeasonScreen extends ConsumerWidget {
     final t = AppLocalizations.of(context)!;
     final currentSeasonAsync = ref.watch(currentSeasonProvider);
     final userProgressAsync = ref.watch(userCurrentSeasonProgressProvider);
-    final userId = ref.watch(currentUserIdProvider);
     // Season screen - displays current season info, leaderboard, and rewards
 
     return Scaffold(
@@ -53,6 +52,21 @@ class SeasonScreen extends ConsumerWidget {
 
               return userProgressAsync.when(
                 data: (progress) {
+                  if (progress == null) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.person_off, size: 64, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text(
+                            t.season_noActiveSeason,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ],
+                      ),
+                    );
+                  }
                   return SingleChildScrollView(
                     padding: const EdgeInsets.all(Kingdom.spaceMd),
                     child: Column(

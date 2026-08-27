@@ -24,6 +24,7 @@ class Kingdom {
   static const Color angerCrimsonDeep = Color(0xFF7A1F17);
   static const Color sadnessIndigo = Color(0xFF35538C); // 悲しみの王・深夜の森
   static const Color sadnessIndigoDeep = Color(0xFF1E2E52);
+  static const Color lightSkyBlue = Color(0xFF6BA3D4); // シーズン・ボーナス色
 
   static Color attributeColor(String? attribute) => switch (attribute) {
         'joy' => joyGold,
