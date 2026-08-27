@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:card_rivals/providers/friends_provider.dart';
 import 'package:card_rivals/models/friend.dart';
+import 'package:card_rivals/models/friend_request.dart';
 import 'friend_detail_screen.dart';
 import 'friend_search_screen.dart';
 
