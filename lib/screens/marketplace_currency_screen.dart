@@ -39,54 +39,48 @@ class MarketplaceCurrencyScreen extends ConsumerWidget {
 class _BuyGemsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final listingsAsync = ref.watch(currencyListingsByTypeProvider('sell_gems'));
+    final listings = ref.watch(currencyListingsByTypeProvider('sell_gems'));
 
-    return listingsAsync.when(
-      data: (listings) {
-        if (listings.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.trending_up,
-                  size: 64,
-                  color: Colors.grey[400],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No gem sellers',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'No players are currently selling gems',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-              ],
+    if (listings.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.trending_up,
+              size: 64,
+              color: Colors.grey[400],
             ),
-          );
-        }
+            const SizedBox(height: 16),
+            Text(
+              'No gem sellers',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'No players are currently selling gems',
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
 
-        // Sort by best price (lowest coins per gem)
-        final sorted = [...listings];
-        sorted.sort((a, b) => a.price.compareTo(b.price));
+    // Sort by best price (lowest coins per gem)
+    final sorted = [...listings];
+    sorted.sort((a, b) => a.price.compareTo(b.price));
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(Kingdom.spaceMd),
-          itemCount: sorted.length,
-          itemBuilder: (context, index) {
-            final listing = sorted[index];
-            return CurrencyListingTile(
-              listing: listing,
-              onFill: () => _showFillDialog(context, ref, listing, 'buy'),
-            );
-          },
+    return ListView.builder(
+      padding: const EdgeInsets.all(Kingdom.spaceMd),
+      itemCount: sorted.length,
+      itemBuilder: (context, index) {
+        final listing = sorted[index];
+        return CurrencyListingTile(
+          listing: listing,
+          onFill: () => _showFillDialog(context, ref, listing, 'buy'),
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, stack) => Center(child: Text('Error: $err')),
     );
   }
 
@@ -162,70 +156,64 @@ class _BuyGemsTab extends ConsumerWidget {
 class _SellGemsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final listingsAsync = ref.watch(currencyListingsByTypeProvider('buy_gems'));
+    final listings = ref.watch(currencyListingsByTypeProvider('buy_gems'));
 
-    return listingsAsync.when(
-      data: (listings) {
-        if (listings.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.trending_down,
-                  size: 64,
-                  color: Colors.grey[400],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No gem buyers',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'No players are currently buying gems',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: () {
-                    // TODO: Navigate to create sell gems listing
-                  },
-                  icon: const Icon(Icons.add),
-                  label: const Text('Create Sell Listing'),
-                ),
-              ],
-            ),
-          );
-        }
-
-        // Sort by best price (highest coins per gem)
-        final sorted = [...listings];
-        sorted.sort((a, b) => b.price.compareTo(a.price));
-
-        return ListView(
-          padding: const EdgeInsets.all(Kingdom.spaceMd),
+    if (listings.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ...sorted.map((listing) => CurrencyListingTile(
-                  listing: listing,
-                  onFill: () => _showFillDialog(context, ref, listing, 'sell'),
-                )),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: Kingdom.spaceMd),
-              child: FilledButton.icon(
-                onPressed: () {
-                  // TODO: Navigate to create sell gems listing
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('Create Sell Listing'),
-              ),
+            Icon(
+              Icons.trending_down,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No gem buyers',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'No players are currently buying gems',
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () {
+                // TODO: Navigate to create sell gems listing
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Create Sell Listing'),
             ),
           ],
-        );
-      },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, stack) => Center(child: Text('Error: $err')),
+        ),
+      );
+    }
+
+    // Sort by best price (highest coins per gem)
+    final sorted = [...listings];
+    sorted.sort((a, b) => b.price.compareTo(a.price));
+
+    return ListView(
+      padding: const EdgeInsets.all(Kingdom.spaceMd),
+      children: [
+        ...sorted.map((listing) => CurrencyListingTile(
+              listing: listing,
+              onFill: () => _showFillDialog(context, ref, listing, 'sell'),
+            )),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: Kingdom.spaceMd),
+          child: FilledButton.icon(
+            onPressed: () {
+              // TODO: Navigate to create sell gems listing
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Create Sell Listing'),
+          ),
+        ),
+      ],
     );
   }
 
