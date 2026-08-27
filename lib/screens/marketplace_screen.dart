@@ -6,6 +6,7 @@ import '../theme/kingdom_theme.dart';
 import '../l10n/app_localizations.dart';
 import 'marketplace_browse_screen.dart';
 import 'marketplace_my_listings_screen.dart';
+import 'marketplace_trade_offers_screen.dart';
 import 'marketplace_history_screen.dart';
 
 class MarketplaceScreen extends ConsumerStatefulWidget {
@@ -149,35 +150,9 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen>
         children: [
           const MarketplaceBrowseScreen(),
           const MarketplaceMyListingsScreen(),
-          _buildTradeOffersPlaceholder(),
+          const MarketplaceTradeOffersScreen(),
           _buildCurrencyPlaceholder(),
           const MarketplaceHistoryScreen(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTradeOffersPlaceholder() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.compare_arrows,
-            size: 64,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Trade Offers',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Coming in Phase 2',
-            style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.center,
-          ),
         ],
       ),
     );
