@@ -1,76 +1,121 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:freezed_annotation/freezed_annotation.dart';
 
-part 'player_public_profile.freezed.dart';
-part 'player_public_profile.g.dart';
+DateTime _parseDateTime(dynamic value) {
+  if (value is DateTime) return value;
+  if (value is Timestamp) return value.toDate();
+  if (value is String) return DateTime.parse(value);
+  throw ArgumentError('Invalid date format: $value');
+}
 
 /// Public-facing player profile information visible to friends and leaderboard
-@freezed
-class PlayerPublicProfile with _$PlayerPublicProfile {
-  const factory PlayerPublicProfile({
-    /// Player's unique ID
-    required String playerId,
+class PlayerPublicProfile {
+  /// Player's unique ID
+  final String playerId;
 
-    /// Player's display name
-    required String displayName,
+  /// Player's display name
+  final String displayName;
 
-    /// Player's current ELO rating
-    required double rating,
+  /// Player's current ELO rating
+  final double rating;
 
-    /// Player's tier rank (1-10)
-    required int tier,
+  /// Player's tier rank (1-10)
+  final int tier;
 
-    /// Player's tier name (Rookie, Veteran, etc.)
-    required String tierName,
+  /// Player's tier name (Rookie, Veteran, etc.)
+  final String tierName;
 
-    /// Total number of battles
-    @Default(0) int battleCount,
+  /// Total number of battles
+  final int battleCount;
 
-    /// Total number of wins
-    @Default(0) int wins,
+  /// Total number of wins
+  final int wins;
 
-    /// Player's current win rate percentage
-    @Default(0.0) double winRate,
+  /// Player's current win rate percentage
+  final double winRate;
 
-    /// Current win streak
-    @Default(0) int currentStreak,
+  /// Current win streak
+  final int currentStreak;
 
-    /// Best win streak achieved
-    @Default(0) int bestStreak,
+  /// Best win streak achieved
+  final int bestStreak;
 
-    /// Favorite kingdom (card type preference)
-    String? favoriteKingdom,
+  /// Favorite kingdom (card type preference)
+  final String? favoriteKingdom;
 
-    /// Player's profile avatar URL
-    String? avatarUrl,
+  /// Player's profile avatar URL
+  final String? avatarUrl;
 
-    /// Short bio/status message
-    String? bio,
+  /// Short bio/status message
+  final String? bio;
 
-    /// Whether profile is public (vs private to friends only)
-    @Default(true) bool isPublic,
+  /// Whether profile is public (vs private to friends only)
+  final bool isPublic;
 
-    /// Timestamp of profile last update
-    required DateTime lastUpdatedAt,
+  /// Timestamp of profile last update
+  final DateTime lastUpdatedAt;
 
-    /// Timestamp of last battle
-    DateTime? lastBattleAt,
+  /// Timestamp of last battle
+  final DateTime? lastBattleAt;
 
-    /// Player's country/region (optional)
-    String? region,
+  /// Player's country/region (optional)
+  final String? region;
 
-    /// Badge/achievement IDs earned
-    @Default([]) List<String> badges,
+  /// Badge/achievement IDs earned
+  final List<String> badges;
 
-    /// Number of current friends
-    @Default(0) int friendCount,
+  /// Number of current friends
+  final int friendCount;
 
-    /// Player's join date
-    required DateTime joinedAt,
-  }) = _PlayerPublicProfile;
+  /// Player's join date
+  final DateTime joinedAt;
 
-  factory PlayerPublicProfile.fromJson(Map<String, dynamic> json) =>
-      _$PlayerPublicProfileFromJson(json);
+  const PlayerPublicProfile({
+    required this.playerId,
+    required this.displayName,
+    required this.rating,
+    required this.tier,
+    required this.tierName,
+    this.battleCount = 0,
+    this.wins = 0,
+    this.winRate = 0.0,
+    this.currentStreak = 0,
+    this.bestStreak = 0,
+    this.favoriteKingdom,
+    this.avatarUrl,
+    this.bio,
+    this.isPublic = true,
+    required this.lastUpdatedAt,
+    this.lastBattleAt,
+    this.region,
+    this.badges = const [],
+    this.friendCount = 0,
+    required this.joinedAt,
+  });
+
+  factory PlayerPublicProfile.fromJson(Map<String, dynamic> json) {
+    return PlayerPublicProfile(
+      playerId: json['playerId'] as String,
+      displayName: json['displayName'] as String,
+      rating: (json['rating'] as num).toDouble(),
+      tier: json['tier'] as int,
+      tierName: json['tierName'] as String,
+      battleCount: json['battleCount'] as int? ?? 0,
+      wins: json['wins'] as int? ?? 0,
+      winRate: (json['winRate'] as num?)?.toDouble() ?? 0.0,
+      currentStreak: json['currentStreak'] as int? ?? 0,
+      bestStreak: json['bestStreak'] as int? ?? 0,
+      favoriteKingdom: json['favoriteKingdom'] as String?,
+      avatarUrl: json['avatarUrl'] as String?,
+      bio: json['bio'] as String?,
+      isPublic: json['isPublic'] as bool? ?? true,
+      lastUpdatedAt: _parseDateTime(json['lastUpdatedAt']),
+      lastBattleAt: json['lastBattleAt'] != null ? _parseDateTime(json['lastBattleAt']) : null,
+      region: json['region'] as String?,
+      badges: (json['badges'] as List?)?.cast<String>() ?? [],
+      friendCount: json['friendCount'] as int? ?? 0,
+      joinedAt: _parseDateTime(json['joinedAt']),
+    );
+  }
 
   factory PlayerPublicProfile.fromFirestore(DocumentSnapshot doc) {
     return PlayerPublicProfile.fromJson({
@@ -78,6 +123,29 @@ class PlayerPublicProfile with _$PlayerPublicProfile {
       'playerId': doc.id,
     });
   }
+
+  Map<String, dynamic> toJson() => {
+    'playerId': playerId,
+    'displayName': displayName,
+    'rating': rating,
+    'tier': tier,
+    'tierName': tierName,
+    'battleCount': battleCount,
+    'wins': wins,
+    'winRate': winRate,
+    'currentStreak': currentStreak,
+    'bestStreak': bestStreak,
+    'favoriteKingdom': favoriteKingdom,
+    'avatarUrl': avatarUrl,
+    'bio': bio,
+    'isPublic': isPublic,
+    'lastUpdatedAt': lastUpdatedAt,
+    'lastBattleAt': lastBattleAt,
+    'region': region,
+    'badges': badges,
+    'friendCount': friendCount,
+    'joinedAt': joinedAt,
+  };
 
   /// Check if player is currently online (last seen within 5 minutes)
   bool get isOnline {
@@ -118,23 +186,42 @@ class PlayerPublicProfile with _$PlayerPublicProfile {
       _ => '#000000',
     };
   }
+
+  @override
+  String toString() => 'PlayerPublicProfile($playerId: $displayName)';
 }
 
 /// Compact profile for friend list display
-@freezed
-class CompactPlayerProfile with _$CompactPlayerProfile {
-  const factory CompactPlayerProfile({
-    required String playerId,
-    required String displayName,
-    required double rating,
-    required int tier,
-    String? avatarUrl,
-    @Default(0.0) double winRate,
-    DateTime? lastBattleAt,
-  }) = _CompactPlayerProfile;
+class CompactPlayerProfile {
+  final String playerId;
+  final String displayName;
+  final double rating;
+  final int tier;
+  final String? avatarUrl;
+  final double winRate;
+  final DateTime? lastBattleAt;
 
-  factory CompactPlayerProfile.fromJson(Map<String, dynamic> json) =>
-      _$CompactPlayerProfileFromJson(json);
+  const CompactPlayerProfile({
+    required this.playerId,
+    required this.displayName,
+    required this.rating,
+    required this.tier,
+    this.avatarUrl,
+    this.winRate = 0.0,
+    this.lastBattleAt,
+  });
+
+  factory CompactPlayerProfile.fromJson(Map<String, dynamic> json) {
+    return CompactPlayerProfile(
+      playerId: json['playerId'] as String,
+      displayName: json['displayName'] as String,
+      rating: (json['rating'] as num).toDouble(),
+      tier: json['tier'] as int,
+      avatarUrl: json['avatarUrl'] as String?,
+      winRate: (json['winRate'] as num?)?.toDouble() ?? 0.0,
+      lastBattleAt: json['lastBattleAt'] != null ? _parseDateTime(json['lastBattleAt']) : null,
+    );
+  }
 
   /// Convert from full profile to compact
   factory CompactPlayerProfile.fromPublicProfile(
@@ -150,4 +237,17 @@ class CompactPlayerProfile with _$CompactPlayerProfile {
       lastBattleAt: profile.lastBattleAt,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'playerId': playerId,
+    'displayName': displayName,
+    'rating': rating,
+    'tier': tier,
+    'avatarUrl': avatarUrl,
+    'winRate': winRate,
+    'lastBattleAt': lastBattleAt,
+  };
+
+  @override
+  String toString() => 'CompactPlayerProfile($playerId: $displayName)';
 }
