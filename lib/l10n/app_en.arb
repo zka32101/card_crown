@@ -693,7 +693,7 @@
   "season_number": "Season {number}",
   "@season_number": {"placeholders":{"number":{"type":"int"}}},
   "season_progress": "Season Progress",
-  "season_rank": "Rank",
+  "season_rankLabel": "Rank",
   "season_rankPoints": "Rank Points",
   "season_totalPoints": "Total Season Points",
   "season_battles": "Battles",

@@ -693,7 +693,7 @@
   "season_number": "シーズン{number}",
   "@season_number": {"placeholders":{"number":{"type":"int"}}},
   "season_progress": "シーズン進捗",
-  "season_rank": "ランク",
+  "season_rankLabel": "ランク",
   "season_rankPoints": "ランクポイント",
   "season_totalPoints": "シーズン総ポイント",
   "season_battles": "バトル",
