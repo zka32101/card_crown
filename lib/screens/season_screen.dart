@@ -15,6 +15,7 @@ class SeasonScreen extends ConsumerWidget {
     final currentSeasonAsync = ref.watch(currentSeasonProvider);
     final userProgressAsync = ref.watch(userCurrentSeasonProgressProvider);
     final userId = ref.watch(currentUserIdProvider);
+    // Season screen - displays current season info, leaderboard, and rewards
 
     return Scaffold(
       backgroundColor: Kingdom.night,
