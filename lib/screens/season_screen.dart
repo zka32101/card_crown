@@ -668,7 +668,7 @@ class SeasonRewardsScreen extends ConsumerWidget {
                         itemCount: rewards.length,
                         itemBuilder: (context, index) {
                           final reward = rewards[index];
-                          final isUnlocked = userProgress?.currentRank ?? 1 >= reward.rankTier;
+                          final isUnlocked = (userProgress?.currentRank ?? 1) >= reward.rankTier;
                           final isClaimed = userProgress?.unlockedRewards.contains(reward.id) ?? false;
 
                           return _buildRewardTile(
