@@ -475,19 +475,20 @@ export const respondToTradeOffer = functions.https.onCall(async (data, context) 
 
     if (action === 'reject') {
       // Simply update status to rejected
+      const rejectedAt = admin.firestore.Timestamp.now();
       transaction.update(offerRef, {
         status: 'rejected',
-        respondedAt: admin.firestore.Timestamp.now(),
+        respondedAt: rejectedAt,
       });
 
       // Update in both user collections
       transaction.update(
         db.collection('users').doc(offer.senderId).collection('marketplace/trade_offers').doc(offerId),
-        { status: 'rejected', respondedAt: admin.firestore.Timestamp.now() }
+        { status: 'rejected', respondedAt: rejectedAt }
       );
       transaction.update(
         db.collection('users').doc(offer.recipientId).collection('marketplace/trade_offers').doc(offerId),
-        { status: 'rejected', respondedAt: admin.firestore.Timestamp.now() }
+        { status: 'rejected', respondedAt: rejectedAt }
       );
 
       return { success: true, message: 'Trade rejected' };
@@ -526,7 +527,6 @@ export const respondToTradeOffer = functions.https.onCall(async (data, context) 
     }
 
     // Update trade offer status
-    const now = admin.firestore.Timestamp.now();
     transaction.update(offerRef, {
       status: 'accepted',
       respondedAt: now,

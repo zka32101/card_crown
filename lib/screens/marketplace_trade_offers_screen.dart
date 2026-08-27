@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../providers/marketplace_provider.dart';
+import '../providers/auth_provider.dart';
 import '../models/marketplace_models.dart';
 import '../theme/kingdom_theme.dart';
 
