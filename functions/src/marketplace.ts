@@ -641,6 +641,210 @@ export const cancelTradeOffer = functions.https.onCall(async (data, context) => 
   });
 });
 
+// ===== CURRENCY EXCHANGE (Phase 3) =====
+
+interface CurrencyListing {
+  listingId: string;
+  playerId: string;
+  playerName: string;
+  type: 'buy_gems' | 'sell_gems';
+  amount: number;
+  price: number;
+  status: 'active' | 'partial' | 'closed';
+  createdAt: admin.firestore.Timestamp;
+  expiresAt: admin.firestore.Timestamp;
+}
+
+/**
+ * Fill a currency exchange listing (buy/sell gems)
+ * Supports partial fills
+ */
+export const fillCurrencyListing = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+
+  const buyerId = context.auth.uid;
+  const { listingId, amount } = data;
+
+  if (!listingId || typeof listingId !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid listingId');
+  }
+
+  if (!amount || typeof amount !== 'number' || amount <= 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid amount');
+  }
+
+  return await db.runTransaction(async (transaction) => {
+    // Get the listing from global collection
+    const globalListingRef = db.collection('marketplace/currency_listings').doc(listingId);
+    const globalListingDoc = await transaction.get(globalListingRef);
+
+    if (!globalListingDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Listing not found');
+    }
+
+    const listing = globalListingDoc.data() as CurrencyListing;
+
+    // Validate listing status
+    if (listing.status !== 'active' && listing.status !== 'partial') {
+      throw new functions.https.HttpsError('failed-precondition', 'Listing is not available');
+    }
+
+    // Check expiry
+    const now = admin.firestore.Timestamp.now();
+    if (now.seconds > listing.expiresAt.seconds) {
+      throw new functions.https.HttpsError('failed-precondition', 'Listing has expired');
+    }
+
+    // Validate amount requested doesn't exceed available
+    if (amount > listing.amount) {
+      throw new functions.https.HttpsError('invalid-argument', `Only ${listing.amount} available`);
+    }
+
+    // Cannot buy from yourself
+    if (listing.playerId === buyerId) {
+      throw new functions.https.HttpsError('invalid-argument', 'Cannot buy from yourself');
+    }
+
+    // Get buyer wallet
+    const buyerRef = db.collection('users').doc(buyerId);
+    const buyerDoc = await transaction.get(buyerRef);
+
+    if (!buyerDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Buyer profile not found');
+    }
+
+    const buyerData = buyerDoc.data();
+    const buyerCoins = buyerData?.coins || 0;
+    const buyerGems = buyerData?.gems || 0;
+
+    // Get seller wallet
+    const sellerRef = db.collection('users').doc(listing.playerId);
+    const sellerDoc = await transaction.get(sellerRef);
+
+    if (!sellerDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Seller profile not found');
+    }
+
+    const sellerData = sellerDoc.data();
+    const sellerCoins = sellerData?.coins || 0;
+    const sellerGems = sellerData?.gems || 0;
+
+    // Calculate total cost/receive
+    const totalCost = amount * listing.price;
+
+    // Validate funds based on listing type
+    if (listing.type === 'sell_gems') {
+      // Buyer is paying coins to get gems
+      if (buyerCoins < totalCost) {
+        throw new functions.https.HttpsError('failed-precondition', 'Insufficient coins');
+      }
+      if (sellerGems < amount) {
+        throw new functions.https.HttpsError('failed-precondition', 'Seller no longer has enough gems');
+      }
+
+      // Transfer coins and gems
+      transaction.update(buyerRef, {
+        coins: buyerCoins - totalCost,
+        gems: buyerGems + amount,
+      });
+
+      transaction.update(sellerRef, {
+        coins: sellerCoins + totalCost,
+        gems: sellerGems - amount,
+      });
+    } else {
+      // Buyer is paying gems to get coins (buy_gems listing means seller is buying gems from you)
+      if (buyerGems < amount) {
+        throw new functions.https.HttpsError('failed-precondition', 'Insufficient gems');
+      }
+      if (sellerCoins < totalCost) {
+        throw new functions.https.HttpsError('failed-precondition', 'Seller no longer has enough coins');
+      }
+
+      // Transfer gems and coins
+      transaction.update(buyerRef, {
+        gems: buyerGems - amount,
+        coins: buyerCoins + totalCost,
+      });
+
+      transaction.update(sellerRef, {
+        coins: sellerCoins - totalCost,
+        gems: sellerGems + amount,
+      });
+    }
+
+    // Update listing
+    const remainingAmount = listing.amount - amount;
+    const newStatus = remainingAmount === 0 ? 'closed' : 'partial';
+
+    transaction.update(globalListingRef, {
+      amount: remainingAmount,
+      status: newStatus,
+    });
+
+    // Also update in seller's user collection
+    transaction.update(
+      db.collection('users').doc(listing.playerId).collection('marketplace/currency_listings').doc(listingId),
+      {
+        amount: remainingAmount,
+        status: newStatus,
+      }
+    );
+
+    // Create transaction records (0% fee for currency exchange)
+    const transactionId1 = db.collection('transactions').doc().id;
+    const buyerTransaction: MarketplaceTransaction = {
+      transactionId: transactionId1,
+      type: 'currency_exchange',
+      playerId: buyerId,
+      coinsDelta: listing.type === 'sell_gems' ? -totalCost : totalCost,
+      gemsDelta: listing.type === 'sell_gems' ? amount : -amount,
+      transactionFeeCoins: 0,
+      relatedListingId: listingId,
+      counterpartyId: listing.playerId,
+      counterpartyName: listing.playerName,
+      createdAt: now,
+      isSuccessful: true,
+      metadata: {
+        listingType: listing.type,
+        amount: amount,
+        pricePerUnit: listing.price,
+      },
+    };
+
+    const transactionId2 = db.collection('transactions').doc().id;
+    const sellerTransaction: MarketplaceTransaction = {
+      transactionId: transactionId2,
+      type: 'currency_exchange',
+      playerId: listing.playerId,
+      coinsDelta: listing.type === 'sell_gems' ? totalCost : -totalCost,
+      gemsDelta: listing.type === 'sell_gems' ? -amount : amount,
+      transactionFeeCoins: 0,
+      relatedListingId: listingId,
+      counterpartyId: buyerId,
+      counterpartyName: buyerData?.displayName || 'Unknown',
+      createdAt: now,
+      isSuccessful: true,
+      metadata: {
+        listingType: listing.type,
+        amount: amount,
+        pricePerUnit: listing.price,
+      },
+    };
+
+    transaction.set(
+      db.collection('users').doc(buyerId).collection('marketplace/transactions').doc(transactionId1),
+      buyerTransaction
+    );
+    transaction.set(
+      db.collection('users').doc(listing.playerId).collection('marketplace/transactions').doc(transactionId2),
+      sellerTransaction
+    );
+
+    return { success: true, message: 'Exchange completed!' };
+  });
+});
+
 // ===== CLEANUP JOBS =====
 
 /**

@@ -7,6 +7,7 @@ import '../l10n/app_localizations.dart';
 import 'marketplace_browse_screen.dart';
 import 'marketplace_my_listings_screen.dart';
 import 'marketplace_trade_offers_screen.dart';
+import 'marketplace_currency_screen.dart';
 import 'marketplace_history_screen.dart';
 
 class MarketplaceScreen extends ConsumerStatefulWidget {
@@ -151,34 +152,8 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen>
           const MarketplaceBrowseScreen(),
           const MarketplaceMyListingsScreen(),
           const MarketplaceTradeOffersScreen(),
-          _buildCurrencyPlaceholder(),
+          const MarketplaceCurrencyScreen(),
           const MarketplaceHistoryScreen(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCurrencyPlaceholder() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.currency_exchange,
-            size: 64,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Currency Exchange',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Coming in Phase 3',
-            style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.center,
-          ),
         ],
       ),
     );
