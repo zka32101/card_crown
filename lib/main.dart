@@ -48,13 +48,13 @@ void main() async {
   }
   runApp(
     const ProviderScope(
-      child: CardCrownApp(),
+      child: CardRivalsApp(),
     ),
   );
 }
 
-class CardCrownApp extends ConsumerWidget {
-  const CardCrownApp({super.key});
+class CardRivalsApp extends ConsumerWidget {
+  const CardRivalsApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
