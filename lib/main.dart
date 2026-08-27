@@ -16,6 +16,7 @@ import 'screens/bonus_detail_screen.dart';
 import 'screens/contact_screen.dart';
 import 'screens/home_screen_v2.dart';
 import 'screens/purchase_history_screen.dart';
+import 'screens/season_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/shop_screen.dart';
 import 'screens/terms_of_service_screen.dart';
@@ -137,6 +138,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/contact',
       builder: (context, state) => const ContactScreen(),
+    ),
+    GoRoute(
+      path: '/season',
+      builder: (context, state) => const SeasonScreen(),
     ),
   ],
 );

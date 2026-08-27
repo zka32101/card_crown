@@ -450,6 +450,8 @@
   "home_noBonusLabel": "No Bonus",
   "home_rankingTitle": "Ranking",
   "home_checkRankLabel": "Check Rank",
+  "home_seasonTitle": "Seasons",
+  "home_seasonSubtitle": "Compete & Earn Rewards",
   "home_notSetLabel": "Not Set",
   "home_deckCountSet": "{count} cards set",
   "@home_deckCountSet": {"placeholders":{"count":{"type":"int"}}},

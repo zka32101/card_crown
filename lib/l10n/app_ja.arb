@@ -450,6 +450,8 @@
   "home_noBonusLabel": "ボーナスなし",
   "home_rankingTitle": "ランキング",
   "home_checkRankLabel": "順位確認",
+  "home_seasonTitle": "シーズン",
+  "home_seasonSubtitle": "競争してリワードを獲得",
   "home_notSetLabel": "未設定",
   "home_deckCountSet": "{count}枚設定中",
   "@home_deckCountSet": {"placeholders":{"count":{"type":"int"}}},
