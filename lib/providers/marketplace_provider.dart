@@ -240,12 +240,12 @@ final marketplaceFiltersProvider = StateProvider<({
 /// Create a card listing
 Future<void> createCardListingFlow(WidgetRef ref, String cardId, int price) async {
   try {
-    final result = await FunctionsService.call(
-      'createCardListing',
-      parameters: {'cardId': cardId, 'price': price},
+    final result = await FunctionsService.createCardListing(
+      cardId: cardId,
+      price: price,
     );
 
-    if (result != null && result['listingId'] != null) {
+    if (result.isNotEmpty && result['listingId'] != null) {
       // Refresh listings
       ref.refresh(myCardListingsProvider);
       ref.refresh(activeCardListingsProvider);
@@ -261,12 +261,11 @@ Future<void> createCardListingFlow(WidgetRef ref, String cardId, int price) asyn
 /// Buy a card from marketplace
 Future<bool> buyCardFlow(WidgetRef ref, String listingId) async {
   try {
-    final result = await FunctionsService.call(
-      'buyCard',
-      parameters: {'listingId': listingId},
+    final result = await FunctionsService.buyCard(
+      listingId: listingId,
     );
 
-    if (result != null && result['success'] == true) {
+    if (result.isNotEmpty && result['success'] == true) {
       // Refresh all relevant providers
       ref.refresh(activeCardListingsProvider);
       ref.refresh(myCardsProvider);
@@ -283,12 +282,11 @@ Future<bool> buyCardFlow(WidgetRef ref, String listingId) async {
 /// Delist a card from marketplace
 Future<bool> delistCardFlow(WidgetRef ref, String listingId) async {
   try {
-    final result = await FunctionsService.call(
-      'delistCard',
-      parameters: {'listingId': listingId},
+    final result = await FunctionsService.delistCard(
+      listingId: listingId,
     );
 
-    if (result != null && result['success'] == true) {
+    if (result.isNotEmpty && result['success'] == true) {
       ref.refresh(myCardListingsProvider);
       ref.refresh(activeCardListingsProvider);
       return true;
@@ -302,12 +300,12 @@ Future<bool> delistCardFlow(WidgetRef ref, String listingId) async {
 /// Update price of a card listing
 Future<bool> updateCardListingPriceFlow(WidgetRef ref, String listingId, int newPrice) async {
   try {
-    final result = await FunctionsService.call(
-      'updateCardListing',
-      parameters: {'listingId': listingId, 'newPrice': newPrice},
+    final result = await FunctionsService.updateCardListing(
+      listingId: listingId,
+      newPrice: newPrice,
     );
 
-    if (result != null && result['success'] == true) {
+    if (result.isNotEmpty && result['success'] == true) {
       ref.refresh(myCardListingsProvider);
       ref.refresh(activeCardListingsProvider);
       return true;
@@ -327,17 +325,14 @@ Future<void> createTradeOfferFlow(
   String? message,
 ) async {
   try {
-    final result = await FunctionsService.call(
-      'createTradeOffer',
-      parameters: {
-        'recipientId': recipientId,
-        'senderCardIds': senderCards,
-        'recipientCardIds': recipientCards,
-        'message': message,
-      },
+    final result = await FunctionsService.createTradeOffer(
+      recipientId: recipientId,
+      senderCardIds: senderCards,
+      recipientCardIds: recipientCards,
+      message: message,
     );
 
-    if (result != null && result['offerId'] != null) {
+    if (result.isNotEmpty && result['offerId'] != null) {
       ref.refresh(myTradeOffersProvider);
       // Clear selections
       ref.read(selectedSenderCardsProvider.notifier).state = [];
@@ -352,12 +347,12 @@ Future<void> createTradeOfferFlow(
 /// Respond to a trade offer (Phase 2)
 Future<bool> respondToTradeOfferFlow(WidgetRef ref, String offerId, String action) async {
   try {
-    final result = await FunctionsService.call(
-      'respondToTradeOffer',
-      parameters: {'offerId': offerId, 'action': action},
+    final result = await FunctionsService.respondToTradeOffer(
+      offerId: offerId,
+      action: action,
     );
 
-    if (result != null && result['success'] == true) {
+    if (result.isNotEmpty && result['success'] == true) {
       ref.refresh(myTradeOffersProvider);
       ref.refresh(myCardsProvider);
       if (action == 'accept') {
@@ -374,12 +369,11 @@ Future<bool> respondToTradeOfferFlow(WidgetRef ref, String offerId, String actio
 /// Cancel a trade offer
 Future<bool> cancelTradeOfferFlow(WidgetRef ref, String offerId) async {
   try {
-    final result = await FunctionsService.call(
-      'cancelTradeOffer',
-      parameters: {'offerId': offerId},
+    final result = await FunctionsService.cancelTradeOffer(
+      offerId: offerId,
     );
 
-    if (result != null && result['success'] == true) {
+    if (result.isNotEmpty && result['success'] == true) {
       ref.refresh(myTradeOffersProvider);
       return true;
     }
@@ -392,12 +386,12 @@ Future<bool> cancelTradeOfferFlow(WidgetRef ref, String offerId) async {
 /// Fill a currency listing (Phase 3)
 Future<bool> fillCurrencyListingFlow(WidgetRef ref, String listingId, {int? amount}) async {
   try {
-    final result = await FunctionsService.call(
-      'fillCurrencyListing',
-      parameters: {'listingId': listingId, 'amount': amount},
+    final result = await FunctionsService.fillCurrencyListing(
+      listingId: listingId,
+      amount: amount,
     );
 
-    if (result != null && result['success'] == true) {
+    if (result.isNotEmpty && result['success'] == true) {
       ref.refresh(activeCurrencyListingsProvider);
       ref.refresh(walletProvider);
       ref.refresh(marketplaceHistoryProvider);

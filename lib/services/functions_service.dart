@@ -93,4 +93,102 @@ class FunctionsService {
     });
     return Map<String, dynamic>.from(result.data as Map);
   }
+
+  // ===== Marketplace Functions =====
+
+  /// Create a card listing for sale
+  static Future<Map<String, dynamic>> createCardListing({
+    required String cardId,
+    required int price,
+  }) async {
+    final callable = _functions.httpsCallable('createCardListing');
+    final result = await callable.call({
+      'cardId': cardId,
+      'price': price,
+    });
+    return Map<String, dynamic>.from(result.data as Map);
+  }
+
+  /// Buy a card from marketplace
+  static Future<Map<String, dynamic>> buyCard({
+    required String listingId,
+  }) async {
+    final callable = _functions.httpsCallable('buyCard');
+    final result = await callable.call({'listingId': listingId});
+    return Map<String, dynamic>.from(result.data as Map);
+  }
+
+  /// Delist a card from marketplace
+  static Future<Map<String, dynamic>> delistCard({
+    required String listingId,
+  }) async {
+    final callable = _functions.httpsCallable('delistCard');
+    final result = await callable.call({'listingId': listingId});
+    return Map<String, dynamic>.from(result.data as Map);
+  }
+
+  /// Update price of a card listing
+  static Future<Map<String, dynamic>> updateCardListing({
+    required String listingId,
+    required int newPrice,
+  }) async {
+    final callable = _functions.httpsCallable('updateCardListing');
+    final result = await callable.call({
+      'listingId': listingId,
+      'newPrice': newPrice,
+    });
+    return Map<String, dynamic>.from(result.data as Map);
+  }
+
+  /// Create a trade offer
+  static Future<Map<String, dynamic>> createTradeOffer({
+    required String recipientId,
+    required List<String> senderCardIds,
+    required List<String> recipientCardIds,
+    String? message,
+  }) async {
+    final callable = _functions.httpsCallable('createTradeOffer');
+    final result = await callable.call({
+      'recipientId': recipientId,
+      'senderCardIds': senderCardIds,
+      'recipientCardIds': recipientCardIds,
+      'message': message,
+    });
+    return Map<String, dynamic>.from(result.data as Map);
+  }
+
+  /// Respond to a trade offer
+  static Future<Map<String, dynamic>> respondToTradeOffer({
+    required String offerId,
+    required String action,
+  }) async {
+    final callable = _functions.httpsCallable('respondToTradeOffer');
+    final result = await callable.call({
+      'offerId': offerId,
+      'action': action,
+    });
+    return Map<String, dynamic>.from(result.data as Map);
+  }
+
+  /// Cancel a trade offer
+  static Future<Map<String, dynamic>> cancelTradeOffer({
+    required String offerId,
+  }) async {
+    final callable = _functions.httpsCallable('cancelTradeOffer');
+    final result = await callable.call({'offerId': offerId});
+    return Map<String, dynamic>.from(result.data as Map);
+  }
+
+  /// Fill a currency listing
+  static Future<Map<String, dynamic>> fillCurrencyListing({
+    required String listingId,
+    int? amount,
+  }) async {
+    final callable = _functions.httpsCallable('fillCurrencyListing');
+    final result = await callable.call({
+      'listingId': listingId,
+      if (amount != null) 'amount': amount,
+    });
+    return Map<String, dynamic>.from(result.data as Map);
+  }
 }
