@@ -205,24 +205,30 @@ class SeasonScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: Kingdom.spaceMd),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progressPercent / 100,
-              minHeight: 20,
-              backgroundColor: Kingdom.parchment.withValues(alpha: 0.2),
-              valueColor: AlwaysStoppedAnimation<Color>(Kingdom.joyGold),
-              child: Center(
-                child: Text(
-                  '${progress.currentRankPoints}/100',
-                  style: TextStyle(
-                    color: Kingdom.night,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progressPercent / 100,
+                  minHeight: 20,
+                  backgroundColor: Kingdom.parchment.withValues(alpha: 0.2),
+                  valueColor: AlwaysStoppedAnimation<Color>(Kingdom.joyGold),
+                ),
+              ),
+              Positioned.fill(
+                child: Center(
+                  child: Text(
+                    '${progress.currentRankPoints}/100',
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
           const SizedBox(height: Kingdom.spaceSm),
           Text(
