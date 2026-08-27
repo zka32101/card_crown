@@ -3,12 +3,14 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../providers/marketplace_provider.dart';
 import '../models/marketplace_models.dart';
 import '../theme/kingdom_theme.dart';
+import '../l10n/app_localizations.dart';
 
 class MarketplaceMyListingsScreen extends ConsumerWidget {
   const MarketplaceMyListingsScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final listingsAsync = ref.watch(myCardListingsProvider);
 
     return listingsAsync.when(
@@ -28,12 +30,12 @@ class MarketplaceMyListingsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'No listings',
+                  t.marketplace_noMyListings,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'List a card to start selling',
+                  t.marketplace_startSelling,
                   style: Theme.of(context).textTheme.bodyMedium,
                   textAlign: TextAlign.center,
                 ),
@@ -43,7 +45,7 @@ class MarketplaceMyListingsScreen extends ConsumerWidget {
                     // TODO: Navigate to create listing screen
                   },
                   icon: const Icon(Icons.add),
-                  label: const Text('Create New Listing'),
+                  label: Text(t.marketplace_createNewListing),
                 ),
               ],
             ),
@@ -55,14 +57,14 @@ class MarketplaceMyListingsScreen extends ConsumerWidget {
           children: [
             // Active Listings Section
             if (activeListings.isNotEmpty) ...[
-              _SectionHeader('Active Listings (${activeListings.length})'),
+              _SectionHeader('${t.marketplace_activeListings} (${activeListings.length})'),
               ...activeListings.map((listing) => MyListingTile(listing: listing)),
               const SizedBox(height: Kingdom.spaceXxl),
             ],
 
             // Sold Listings Section
             if (soldListings.isNotEmpty) ...[
-              _SectionHeader('Sold (${soldListings.length})'),
+              _SectionHeader('${t.marketplace_soldListings} (${soldListings.length})'),
               ...soldListings.map((listing) => SoldListingTile(listing: listing)),
             ],
 
@@ -74,7 +76,7 @@ class MarketplaceMyListingsScreen extends ConsumerWidget {
                   // TODO: Navigate to create listing screen
                 },
                 icon: const Icon(Icons.add),
-                label: const Text('Create New Listing'),
+                label: Text(t.marketplace_createNewListing),
               ),
             ),
           ],
@@ -127,13 +129,13 @@ class MyListingTile extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              '${listing.views} views',
+                              '${listing.views} ${AppLocalizations.of(context)!.marketplace_viewsLabel}',
                               style: TextStyle(fontSize: 11, color: Kingdom.gilt),
                             ),
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            'Cost ${listing.cost}',
+                            '${AppLocalizations.of(context)!.marketplace_costLabel} ${listing.cost}',
                             style: TextStyle(fontSize: 12, color: Kingdom.parchment.withValues(alpha: 0.6)),
                           ),
                         ],
@@ -149,7 +151,7 @@ class MyListingTile extends ConsumerWidget {
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Kingdom.gilt),
                     ),
                     Text(
-                      '${listing.sellerReceives}🪙 after fee',
+                      '${listing.sellerReceives}🪙 ${AppLocalizations.of(context)!.marketplace_afterFee}',
                       style: TextStyle(fontSize: 10, color: Kingdom.parchment.withValues(alpha: 0.5)),
                     ),
                   ],
@@ -162,7 +164,7 @@ class MyListingTile extends ConsumerWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.edit, size: 16),
-                    label: const Text('Update Price'),
+                    label: Text(AppLocalizations.of(context)!.marketplace_updatePrice),
                     onPressed: () {
                       // TODO: Show update price dialog
                     },
@@ -172,7 +174,7 @@ class MyListingTile extends ConsumerWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.delete_outline, size: 16),
-                    label: const Text('Delist'),
+                    label: Text(AppLocalizations.of(context)!.marketplace_delist),
                     onPressed: () => _showDelistConfirm(context, ref, listing),
                   ),
                 ),
@@ -185,15 +187,16 @@ class MyListingTile extends ConsumerWidget {
   }
 
   void _showDelistConfirm(BuildContext context, WidgetRef ref, CardListing listing) {
+    final t = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove Listing?'),
-        content: Text('Remove ${listing.cardName['en'] ?? 'this card'} from marketplace?'),
+        title: Text(t.marketplace_removeListingTitle),
+        content: Text('${t.marketplace_removeListingDesc} (${listing.cardName['en'] ?? 'this card'})?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(t.marketplace_cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -202,13 +205,13 @@ class MyListingTile extends ConsumerWidget {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(success ? 'Listing removed' : 'Failed to remove listing'),
+                    content: Text(success ? t.marketplace_listingRemoved : t.marketplace_removeListingFailed),
                     backgroundColor: success ? Colors.green : Colors.red,
                   ),
                 );
               }
             },
-            child: const Text('Remove'),
+            child: Text(t.marketplace_remove),
           ),
         ],
       ),
@@ -249,7 +252,7 @@ class SoldListingTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Sold to ${listing.buyerName ?? 'unknown'}',
+                    '${AppLocalizations.of(context)!.marketplace_soldTo} ${listing.buyerName ?? 'unknown'}',
                     style: TextStyle(fontSize: 11, color: Kingdom.parchment.withValues(alpha: 0.5)),
                   ),
                 ],

@@ -20,6 +20,7 @@ import '../widgets/daily_reward_dialog.dart';
 import 'collection_screen.dart';
 import 'popular_cards_screen.dart';
 import 'card_rental_settings_screen.dart';
+import 'season_screen.dart';
 import '../providers/migration_provider.dart';
 import '../l10n/app_localizations.dart';
 
@@ -523,6 +524,20 @@ class _MainActionsV2 extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 10),
+
+        // シーズン（フル幅）
+        _KingdomActionTile(
+          accent: Kingdom.lightSkyBlue,
+          emoji: '⚔️',
+          title: t.home_seasonTitle,
+          subtitle: t.home_seasonSubtitle,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SeasonScreen()),
+          ),
+          fullWidth: true,
+        ),
       ],
     );
   }
@@ -534,6 +549,7 @@ class _KingdomActionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final bool fullWidth;
 
   const _KingdomActionTile({
     required this.accent,
@@ -541,12 +557,13 @@ class _KingdomActionTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.fullWidth = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 60,
+    final tile = Container(
+      height: fullWidth ? 70 : 60,
       decoration: BoxDecoration(
         color: Kingdom.nightDeep,
         borderRadius: BorderRadius.circular(12),
@@ -569,6 +586,8 @@ class _KingdomActionTile extends StatelessWidget {
         ),
       ),
     );
+
+    return tile;
   }
 }
 
