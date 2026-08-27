@@ -12,3 +12,29 @@ export {
   generateDailyEmotionCardImage,
   onDailyEmotionCardCreated,
 } from "./dailyEmotionCard";
+export {
+  sendFriendRequest,
+  acceptFriendRequest,
+  rejectFriendRequest,
+  removeFriend,
+  updateFriendMetadata,
+  updateFriendCachedData,
+} from "./manageFriends";
+export {
+  createDeckPreset,
+  updateDeckPreset,
+  deleteDeckPreset,
+  activateDeckPreset,
+} from "./manageDeckPresets";
+export {
+  createEventChallenge,
+  claimEventChallengeReward,
+  recordEventChallengeProgress,
+} from "./manageEventChallenges";
+export {
+  createCardListing,
+  buyCard,
+  delistCard,
+  updateCardListing,
+  expireListings,
+} from "./marketplace";
