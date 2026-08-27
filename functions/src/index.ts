@@ -40,4 +40,5 @@ export {
   createTradeOffer,
   respondToTradeOffer,
   cancelTradeOffer,
+  fillCurrencyListing,
 } from "./marketplace";
