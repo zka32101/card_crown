@@ -21,6 +21,11 @@ class BattleResultScreenV2 extends ConsumerStatefulWidget {
   final List<PlayCard> opponentDeck;
   final String? opponentName;
   final String? opponentTier;
+  // pvpBattle Cloud Functionがサーバー側で反映したシーズン進捗（アクティブシーズンが
+  // 無い場合やサーバー呼び出しがローカルフォールバックした場合はnull/未設定のまま）
+  final int? seasonPointsGained;
+  final bool seasonRankedUp;
+  final int? seasonNewRank;
 
   const BattleResultScreenV2({
     super.key,
@@ -30,6 +35,9 @@ class BattleResultScreenV2 extends ConsumerStatefulWidget {
     required this.opponentDeck,
     this.opponentName,
     this.opponentTier,
+    this.seasonPointsGained,
+    this.seasonRankedUp = false,
+    this.seasonNewRank,
   });
 
   @override
@@ -258,6 +266,12 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
                   // ボーナス情報（PvP勝利時のみ）
                   if (widget.isPvP && isWin) ...[
                     _buildBonusInfo(),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // シーズン進捗（PvP勝利時、アクティブシーズンがある場合のみ）
+                  if (widget.isPvP && isWin && (widget.seasonPointsGained ?? 0) > 0) ...[
+                    _buildSeasonPanel(),
                     const SizedBox(height: 24),
                   ],
 
@@ -581,6 +595,35 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
             const SizedBox(height: 8),
             Text(t.battleResult_pvpBonusCapInfo(kDailyBonusCoinCap, remaining),
                 style: TextStyle(color: Kingdom.parchment.withValues(alpha: 0.6), fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSeasonPanel() {
+    final t = AppLocalizations.of(context)!;
+    final points = widget.seasonPointsGained ?? 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: OrnateFrame(
+        accent: Kingdom.lightSkyBlue,
+        child: Row(
+          children: [
+            const Text('🏆', style: TextStyle(fontSize: 28)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(t.battleResult_seasonPointsEarned(points),
+                      style: Kingdom.label(size: 14, color: Kingdom.lightSkyBlue)),
+                  if (widget.seasonRankedUp && widget.seasonNewRank != null)
+                    Text(t.battleResult_seasonRankUp(widget.seasonNewRank!),
+                        style: const TextStyle(color: Kingdom.gilt, fontSize: 12, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
           ],
         ),
       ),

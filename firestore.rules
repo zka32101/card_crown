@@ -48,6 +48,15 @@ service cloud.firestore {
         allow read: if request.auth != null && request.auth.uid == userId;
         allow write: if false;
       }
+
+      // シーズン進捗（pvpBattle Cloud Functionが勝敗を反映し、claimSeasonReward
+      // Cloud Functionがリワード請求を反映する。クライアントは本人の分を読み取りのみ
+      // —— ratingと同じ方針。かつてはここもクライアントの直接書き込みが許可されており、
+      // 実際の対戦結果と無関係にランク/ポイントを自己申告できてしまっていた）。
+      match /seasonProgress/{document=**} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
     }
 
     // =============== カードレンタル取引記録 ===============

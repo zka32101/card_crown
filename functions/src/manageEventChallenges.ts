@@ -12,11 +12,6 @@ interface ProgressChallengeRequest {
   progressAmount: number; // 進捗量（例：勝利数、ダメージ量）
 }
 
-interface ChallengeCompletion {
-  eventId: string;
-  challengeId: string;
-}
-
 interface ClaimRewardRequest {
   eventId: string;
   challengeId: string;

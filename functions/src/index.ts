@@ -21,15 +21,14 @@ export {
   updateFriendCachedData,
 } from "./manageFriends";
 export {
-  createDeckPreset,
-  updateDeckPreset,
+  saveDeckPreset,
   deleteDeckPreset,
-  activateDeckPreset,
+  copyDeckPreset,
 } from "./manageDeckPresets";
 export {
-  createEventChallenge,
-  claimEventChallengeReward,
-  recordEventChallengeProgress,
+  progressChallenge,
+  claimChallengeReward,
+  getUserEventProgress,
 } from "./manageEventChallenges";
 export {
   createCardListing,
@@ -42,3 +41,4 @@ export {
   cancelTradeOffer,
   fillCurrencyListing,
 } from "./marketplace";
+export {claimSeasonReward} from "./manageSeasons";
