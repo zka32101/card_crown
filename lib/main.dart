@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
@@ -25,6 +26,14 @@ import 'theme/kingdom_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // リリースビルドではdebugPrint()の出力を抑制する。debugPrintはpackage:flutter/
+  // foundation.dartが公開する差し替え可能な関数ポインタなので、ここで1箇所無効化
+  // するだけでアプリ全体（lib/配下の全debugPrint呼び出し）に効く。
+  // エラーメッセージ自体に機密情報は含めていないが、配布ビルドのログに何も
+  // 出さないのが原則のため抑制する。
+  if (kReleaseMode) {
+    debugPrint = (String? message, {int? wrapWidth}) {};
+  }
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

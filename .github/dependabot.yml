@@ -1,0 +1,20 @@
+# 依存パッケージの脆弱性を自動検知し、更新PRを自動作成する設定。
+version: 2
+updates:
+  # Flutter/Dartアプリ本体 (pubspec.yaml)
+  - package-ecosystem: "pub"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Cloud Functions (functions/package.json)
+  - package-ecosystem: "npm"
+    directory: "/functions"
+    schedule:
+      interval: "weekly"
+
+  # GitHub Actionsワークフロー自体の依存
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
