@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/user_card.dart';
+import '../services/functions_service.dart';
 import 'auth_provider.dart';
 import 'card_rental_provider.dart';
 import 'game_state_provider.dart';
@@ -67,29 +69,32 @@ Future<void> saveUserCard(String userId, UserCard card) async {
   }
 }
 
-// カードを1レベル特訓する（コイン消費）。上限到達・残高不足の場合はfalseを返す。
-bool levelUpCard(WidgetRef ref, String cardId) {
-  final cards = ref.read(myCardsProvider);
-  final index = cards.indexWhere((c) => c.cardId == cardId);
-  if (index == -1) return false;
-  final card = cards[index];
-  if (card.level >= kMaxCardLevel) return false;
+// カードを1レベル特訓する（コイン消費・サーバー権威）。levelUpCard Cloud Function
+// 経由でサーバー側がレベル上限・残高・レベルアップ幅（+1固定）を検証してから
+// アトミックに更新する。以前はクライアントが直接Firestoreへlevelを書き込んでおり、
+// 改造クライアント/直接呼び出しでlevelを任意の値に詐称できてしまっていた
+// （pvpBattle.tsのresolveCustomCardがそのlevelを検証なしで信用してPvP戦闘の実ダメージを
+//  計算するため、rating/seasonProgressと同じ深刻さで対戦の公正性を壊せていた）。
+// 成功時はnullを返し、ローカルのmyCardsProvider/walletProviderにも反映する。
+// 失敗時（上限到達・残高不足など）はサーバー側のエラーメッセージを返す。
+Future<String?> levelUpCard(WidgetRef ref, String cardId) async {
+  try {
+    final result = await FunctionsService.levelUpCard(cardId: cardId);
+    final newLevel = result['newLevel'] as int;
+    final newCoinBalance = result['newCoinBalance'] as int;
 
-  final cost = cardLevelUpCost(card.level);
-  final wallet = ref.read(walletProvider);
-  if (wallet.coinBalance < cost) return false;
-
-  final updatedWallet = wallet.copyWith(coinBalance: wallet.coinBalance - cost);
-  final updatedCard = card.copyWith(level: card.level + 1);
-
-  ref.read(walletProvider.notifier).state = updatedWallet;
-  final updatedCards = List<UserCard>.from(cards)..[index] = updatedCard;
-  ref.read(myCardsProvider.notifier).state = updatedCards;
-
-  final userId = ref.read(currentUserIdProvider);
-  if (userId != null) {
-    updateWallet(userId, updatedWallet);
-    saveUserCard(userId, updatedCard);
+    final cards = ref.read(myCardsProvider);
+    final index = cards.indexWhere((c) => c.cardId == cardId);
+    if (index != -1) {
+      final updatedCards = List<UserCard>.from(cards)..[index] = cards[index].copyWith(level: newLevel);
+      ref.read(myCardsProvider.notifier).state = updatedCards;
+    }
+    final wallet = ref.read(walletProvider);
+    ref.read(walletProvider.notifier).state = wallet.copyWith(coinBalance: newCoinBalance);
+    return null;
+  } on FirebaseFunctionsException catch (e) {
+    return e.message ?? 'unknown error';
+  } catch (_) {
+    return 'unknown error';
   }
-  return true;
 }

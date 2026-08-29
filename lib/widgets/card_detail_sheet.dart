@@ -230,7 +230,7 @@ class _TrainingSection extends ConsumerWidget {
             child: ElevatedButton(
               onPressed: isMaxed
                   ? null
-                  : () {
+                  : () async {
                       if (!canAfford) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text(t.collection_trainInsufficientCoins), backgroundColor: Kingdom.angerCrimson),
@@ -238,10 +238,15 @@ class _TrainingSection extends ConsumerWidget {
                         return;
                       }
                       final newLevel = card.level + 1;
-                      final ok = levelUpCard(ref, card.cardId);
-                      if (ok) {
+                      final error = await levelUpCard(ref, card.cardId);
+                      if (!context.mounted) return;
+                      if (error == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text(t.collection_trainSuccess(newLevel)), backgroundColor: Colors.green),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(t.collection_trainInsufficientCoins), backgroundColor: Kingdom.angerCrimson),
                         );
                       }
                     },

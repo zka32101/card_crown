@@ -96,3 +96,61 @@ export const claimSeasonReward = functions
       throw new functions.https.HttpsError("internal", "リワード受取に失敗しました");
     }
   });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// シーズンランキング取得
+// 旧lib/providers/season_provider.dartのseasonLeaderboardProviderは、
+// FirebaseFirestore.instance.collection('users').get()で全ユーザードキュメントを
+// クライアントから直接横断取得しようとしていたが、firestore.rulesのusers/{userId}は
+// 本人uidのみ読み取り可であり、この呼び出しは常にpermission-deniedで失敗していた
+// （try/catchで握りつぶされ「ランキングデータがありません」と表示されるだけだった）。
+// Admin SDKはセキュリティルールの対象外なので、この集計はCloud Function側で行う。
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const LEADERBOARD_LIMIT = 100;
+
+export const getSeasonLeaderboard = functions
+  .region("asia-northeast1")
+  .runWith({timeoutSeconds: 30})
+  .https.onCall(async (data: {seasonId: string}, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "認証が必要です");
+    }
+    const {seasonId} = data;
+    if (!seasonId) {
+      throw new functions.https.HttpsError("invalid-argument", "seasonIdが必要です");
+    }
+
+    try {
+      // users/{uid}/seasonProgress/{seasonId} を横断するcollectionGroupクエリ。
+      // 旧実装（全users取得→各ユーザーのサブコレクションを1件ずつ取得）と異なり、
+      // 1回のクエリで完結する。ソート順は旧実装のローカルソートと同じ
+      // （ランク→ランク内ポイント→シーズン総ポイントの降順）。
+      const snapshot = await admin.firestore()
+        .collectionGroup("seasonProgress")
+        .where("seasonId", "==", seasonId)
+        .orderBy("currentRank", "desc")
+        .orderBy("currentRankPoints", "desc")
+        .orderBy("totalSeasonPoints", "desc")
+        .limit(LEADERBOARD_LIMIT)
+        .get();
+
+      const leaderboard = snapshot.docs.map((doc) => {
+        const d = doc.data();
+        return {
+          userId: d.userId ?? "",
+          currentRank: d.currentRank ?? 1,
+          currentRankPoints: d.currentRankPoints ?? 0,
+          totalSeasonPoints: d.totalSeasonPoints ?? 0,
+          battlesWon: d.battlesWon ?? 0,
+          battlesPlayed: d.battlesPlayed ?? 0,
+          highestRank: d.highestRank ?? 1,
+        };
+      });
+
+      return {leaderboard};
+    } catch (error) {
+      console.error(`Failed to fetch season leaderboard for season ${seasonId}:`, error);
+      throw new functions.https.HttpsError("internal", "ランキングの取得に失敗しました");
+    }
+  });

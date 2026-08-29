@@ -26,6 +26,14 @@ class BattleResultScreenV2 extends ConsumerStatefulWidget {
   final int? seasonPointsGained;
   final bool seasonRankedUp;
   final int? seasonNewRank;
+  // PvP戦の判定がpvpBattle Cloud Function（サーバー権威）から実際に返ってきたか。
+  // falseはローカルのBattleEngineフォールバックで進行したことを意味し、
+  // レーティング/シーズン進捗は変動していない。連勝ボーナス・PvPデイリーボーナスの
+  // コインもこのフラグがtrueの時だけ付与する（サーバー呼び出し失敗のたびに
+  // 「本来の報酬は動かないのにコインだけ付く」という経済的不整合を防ぐため）。
+  // PvP以外の呼び出し元（練習モード等）はisPvP=falseで既にボーナス自体が
+  // 無効化されるため、trueのままで問題ない。
+  final bool serverConfirmed;
 
   const BattleResultScreenV2({
     super.key,
@@ -38,6 +46,7 @@ class BattleResultScreenV2 extends ConsumerStatefulWidget {
     this.seasonPointsGained,
     this.seasonRankedUp = false,
     this.seasonNewRank,
+    this.serverConfirmed = true,
   });
 
   @override
@@ -58,7 +67,10 @@ class _BattleResultScreenV2State extends ConsumerState<BattleResultScreenV2> {
       // 連勝数・連勝ボーナス・連勝シールドはPvPの実績。「ノーボーナス」と明記された
       // AI練習モードでこれを更新すると、練習勝利で無リスクにコインを稼げたり、
       // 練習の負けでPvP用の連勝/シールドを失ったりしてしまうバグがあった。
-      if (widget.isPvP) {
+      // serverConfirmedがfalseの場合（pvpBattle呼び出し失敗によるローカルフォールバック）は
+      // レーティング/シーズン進捗が動いていないので、コイン報酬だけ付与すると
+      // 「本来の報酬は据え置きなのにコインだけ増える」という経済的不整合になる。
+      if (widget.isPvP && widget.serverConfirmed) {
         _updateStreak();
         if (widget.result.attackerWon) _updatePvpBonus();
       }
