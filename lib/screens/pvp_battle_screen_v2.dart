@@ -73,6 +73,13 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
   String _opponentName = '';
   String _opponentTier = '';
   BattleResult? _result;
+  // pvpBattleがサーバー側で成功したか。falseの場合は_runBattleがローカルの
+  // BattleEngineへフォールバックしており、結果は改ざん防止の対象外
+  // （レーティング・シーズン進捗は変動しない）。コイン報酬/連勝ボーナスも
+  // このフラグがtrueの時だけ付与する — でなければ、サーバー呼び出しが失敗する
+  // たびに「レーティング/シーズンは動かないのにコイン・連勝だけは付く」という
+  // 経済的な不整合が生まれてしまう（練習モードでこれを防いだ既存の修正と同じ理由）。
+  bool _serverConfirmed = false;
   // pvpBattle Cloud Functionが返すシーズン進捗の反映結果（アクティブシーズンが
   // 無い場合や、サーバー呼び出し自体がフォールバックした場合はnullのまま）
   Map<String, dynamic>? _seasonResult;
@@ -256,6 +263,7 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
                 ))
             .toList(),
       );
+      _serverConfirmed = true;
     } catch (e) {
       // サーバー呼び出しに失敗した場合はクライアント側で計算して続行する
       _result = BattleEngine.simulate(
@@ -350,6 +358,7 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
           seasonPointsGained: _seasonResult?['pointsGained'] as int?,
           seasonRankedUp: _seasonResult?['rankedUp'] as bool? ?? false,
           seasonNewRank: _seasonResult?['newRank'] as int?,
+          serverConfirmed: _serverConfirmed,
         ),
       ),
     );

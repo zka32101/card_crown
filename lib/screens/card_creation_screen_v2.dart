@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -831,16 +832,15 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
       // _confirmAndPay側で確認済みだが、確認ダイアログ表示中の消費と競合した場合の保険
       return;
     }
-    final updated = wallet.copyWith(coinBalance: wallet.coinBalance - cost);
-    ref.read(walletProvider.notifier).state = updated;
-    final userId = ref.read(currentUserIdProvider);
-    if (userId != null) {
-      updateWallet(userId, updated);
-    }
-    await _onCardCreated(cost);
+    // コイン消費とカード実数値の決定は createCard Cloud Function 側のトランザクションで
+    // アトミックに行う（サーバー権威）。以前はここでローカルにコインを引き、
+    // ステータス値も含めてクライアントが直接Firestoreへ書き込んでおり、改造クライアント/
+    // 直接呼び出しでattackPower等を任意の値に詐称できてしまっていた
+    // （pvpBattle.tsが検証なしで信用してPvP戦闘の実ダメージを計算するため実害が大きい）。
+    await _onCardCreated(cost, isVip);
   }
 
-  Future<void> _onCardCreated(int cost) async {
+  Future<void> _onCardCreated(int cost, bool isVip) async {
     final t = AppLocalizations.of(context)!;
     // 画像生成ローディング表示
     if (mounted) {
@@ -856,7 +856,7 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
 
     String imageUrl = '';
     try {
-      final card = PlayCard(
+      final previewCard = PlayCard(
         cardId: 'tmp',
         attribute: _attribute ?? 'joy',
         cost: _cost ?? 1,
@@ -868,7 +868,7 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
       imageUrl = await FunctionsService.generateCardImage(
         attribute: _attribute ?? 'joy',
         cardName: _selectedName ?? '',
-        cardType: card.getCardType(),
+        cardType: previewCard.getCardType(),
         rarity: _costToRarity(_cost ?? 1),
         designWords: List<String>.from(_selectedDesignWords),
         tone: _tone,
@@ -876,12 +876,49 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
     } catch (e) {
       // 画像生成失敗時はプレースホルダーで続行
       imageUrl = '';
-    } finally {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
     }
 
     final coCreatorName = _coCreatorController.text.trim();
-    final newCardId = 'created_${DateTime.now().millisecondsSinceEpoch}';
+    final cardNameJp = _selectedName ?? t.cardCreation_defaultCardName;
+    final userId = ref.read(currentUserIdProvider);
+
+    Map<String, dynamic> result;
+    try {
+      result = await FunctionsService.createCard(
+        attribute: _attribute ?? 'joy',
+        cost: _cost ?? 1,
+        attackPower: _attack,
+        defensePower: _defense,
+        speed: _speed,
+        cardNameJp: cardNameJp,
+        imageUrl: imageUrl,
+        coCreatorName: coCreatorName.isEmpty ? null : coCreatorName,
+        isVip: isVip,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message ?? t.cardCreation_insufficientCoins), backgroundColor: Kingdom.angerCrimson),
+        );
+      }
+      return;
+    } catch (_) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t.cardCreation_insufficientCoins), backgroundColor: Kingdom.angerCrimson),
+        );
+      }
+      return;
+    }
+    if (mounted) Navigator.of(context, rootNavigator: true).pop();
+
+    final newCardId = result['cardId'] as String;
+    final newCoinBalance = result['newCoinBalance'] as int;
+    final wallet = ref.read(walletProvider);
+    ref.read(walletProvider.notifier).state = wallet.copyWith(coinBalance: newCoinBalance);
+
     final newCard = PlayCard(
       cardId: newCardId,
       attribute: _attribute ?? 'joy',
@@ -889,14 +926,12 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
       attackPower: _attack,
       defensePower: _defense,
       speed: _speed,
-      nameJp: _selectedName ?? t.cardCreation_defaultCardName,
+      nameJp: cardNameJp,
       imageUrl: imageUrl,
       coCreatorName: coCreatorName.isEmpty ? null : coCreatorName,
     );
 
-    // コインを払って作ったカードなので、必ずコレクションへ保存する
-    // （以前はここで保存されず、演出だけ見せて何も残らないバグがあった）。
-    final userId = ref.read(currentUserIdProvider);
+    // サーバー側で既に永続化済みなので、ローカル状態にも楽観的に反映するだけでよい。
     final userCard = UserCard(
       cardId: newCardId,
       userId: userId ?? '',
@@ -913,7 +948,6 @@ class _CardCreationScreenV2State extends ConsumerState<CardCreationScreenV2> {
       coCreatorName: newCard.coCreatorName,
     );
     ref.read(myCardsProvider.notifier).state = [...ref.read(myCardsProvider), userCard];
-    if (userId != null) saveUserCard(userId, userCard);
 
     if (!mounted) return;
     await CardRevealDialog.show(context, newCard);

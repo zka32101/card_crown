@@ -176,41 +176,33 @@ final seasonRewardsProvider = FutureProvider.family<List<SeasonRankReward>, Stri
   }
 });
 
-/// シーズンランキング（トップ100）を取得
+/// シーズンランキング（トップ100）を取得。
+/// 以前はクライアントが`users`コレクション全体を横断取得しようとしていたが、
+/// firestore.rulesのusers/{userId}は本人uidのみ読み取り可のため、この呼び出しは
+/// 常にpermission-deniedで失敗していた（try/catchで握りつぶされ、ランキング画面には
+/// 常に「データがありません」とだけ表示される状態だった）。Admin SDK経由で集計する
+/// getSeasonLeaderboard Cloud Function（サーバー側のみセキュリティルールの対象外）を
+/// 呼び出すように変更。
 final seasonLeaderboardProvider = FutureProvider.family<List<UserSeasonProgress>, String>((ref, seasonId) async {
   try {
-    final querySnapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .get();
-
-    final allProgress = <UserSeasonProgress>[];
-    for (final userDoc in querySnapshot.docs) {
-      try {
-        final progressDoc = await userDoc.reference
-            .collection('seasonProgress')
-            .doc(seasonId)
-            .get();
-
-        if (progressDoc.exists) {
-          allProgress.add(UserSeasonProgress.fromMap(progressDoc.data() ?? {}));
-        }
-      } catch (e) {
-        debugPrint('Error loading user progress: $e');
-      }
-    }
-
-    // ランクとポイントでソート（高い順）
-    allProgress.sort((a, b) {
-      if (a.currentRank != b.currentRank) {
-        return b.currentRank.compareTo(a.currentRank);
-      }
-      if (a.currentRankPoints != b.currentRankPoints) {
-        return b.currentRankPoints.compareTo(a.currentRankPoints);
-      }
-      return b.totalSeasonPoints.compareTo(a.totalSeasonPoints);
-    });
-
-    return allProgress.take(100).toList();
+    final result = await FunctionsService.getSeasonLeaderboard(seasonId: seasonId);
+    final rows = (result['leaderboard'] as List).cast<Map>();
+    final now = DateTime.now();
+    return rows.map((row) {
+      return UserSeasonProgress(
+        seasonId: seasonId,
+        userId: row['userId'] as String? ?? '',
+        currentRank: (row['currentRank'] as int?) ?? 1,
+        currentRankPoints: (row['currentRankPoints'] as int?) ?? 0,
+        totalSeasonPoints: (row['totalSeasonPoints'] as int?) ?? 0,
+        battlesWon: (row['battlesWon'] as int?) ?? 0,
+        battlesPlayed: (row['battlesPlayed'] as int?) ?? 0,
+        highestRank: (row['highestRank'] as int?) ?? 1,
+        // このビューでは使わないため実データではなく現在時刻を仮置きする
+        joinedAt: now,
+        updatedAt: now,
+      );
+    }).toList();
   } catch (e) {
     debugPrint('Error loading season leaderboard: $e');
     return [];

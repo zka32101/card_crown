@@ -34,13 +34,28 @@ service cloud.firestore {
 
       // ユーザーが作成したカード（コインを消費して作成。特訓レベルもここに保存）。
       // isPublic=trueのカードは、レンタル一覧（collectionGroupクエリ）で他ユーザーからも
-      // 読み取れる必要がある。書き込みは引き続き本人のみ
-      // （totalRentalCount/totalRentalEarningsの更新はrentCard Cloud FunctionがAdmin SDK経由で
-      //  行うため、このルールの対象外＝クライアントから直接改ざんすることはできない）。
+      // 読み取れる必要がある。
+      //
+      // 新規作成・attackPower/defensePower/speed/level/cost/attributeの変更は
+      // createCard/levelUpCard Cloud Functionのみが行う（Admin SDK経由でこのルールの
+      // 対象外）。これらはPvPバトルの実ダメージ計算にそのまま使われるため、
+      // ratingやseasonProgressと同じ深刻さでクライアントの自己申告を信用できない
+      // —— 以前はここが本人uidチェックのみでフィールド内容を一切検証しておらず、
+      // 改造クライアント/直接呼び出しでattackPowerやlevelを任意の値に詐称できた。
+      // isPublic（レンタル公開切替）・rentalCostPerDay等、戦闘に関わらないフィールドの
+      // 更新は引き続き本人がクライアントから直接行える。
       match /cards/{cardId} {
         allow read: if request.auth != null &&
           (request.auth.uid == userId || resource.data.isPublic == true);
-        allow write: if request.auth != null && request.auth.uid == userId;
+        allow create: if false;
+        allow update: if request.auth != null && request.auth.uid == userId &&
+          request.resource.data.attackPower == resource.data.attackPower &&
+          request.resource.data.defensePower == resource.data.defensePower &&
+          request.resource.data.speed == resource.data.speed &&
+          request.resource.data.level == resource.data.level &&
+          request.resource.data.cost == resource.data.cost &&
+          request.resource.data.attribute == resource.data.attribute;
+        allow delete: if false;
       }
 
       // PvPレーティング（pvpBattle Cloud Functionのみが更新。クライアントは本人の分を読み取りのみ）

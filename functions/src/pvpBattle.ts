@@ -286,6 +286,9 @@ interface PvpBattleRequest {
 // pvpMatch記録の有効期限（この時間を過ぎたmatchIdは失効させ、古いマッチの使い回しを防ぐ）
 const MATCH_TTL_MS = 10 * 60 * 1000;
 
+// デッキ枚数。lib/screens/deck_selection_screen_v2.dartのmaxCards(デフォルト5)と同じ値。
+const REQUIRED_DECK_SIZE = 5;
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // シーズン進捗更新（レーティングと同じくサーバー権威で行う）
 // lib/providers/game_state_provider.dart の myPlayerRankProvider と同じ方針で、
@@ -390,8 +393,20 @@ export const pvpBattle = functions
     const userId = context.auth.uid;
 
     const attackerDeckCardIds = data.attackerDeckCardIds ?? [];
-    if (attackerDeckCardIds.length === 0 || !data.matchId) {
+    if (!data.matchId) {
       throw new functions.https.HttpsError("invalid-argument", "デッキが不正です");
+    }
+    // デッキ枚数（lib/screens/deck_selection_screen_v2.dartのmaxCardsと同じ5枚固定）と
+    // 重複カードを検証する。以前は「空でない」ことしか確認しておらず、UIを経由しない
+    // 直接呼び出しで1枚だけの（相手の先頭カードに一方的に有利な）デッキを送る、
+    // または同じ最強カードを5枚重ねるといった詐称が可能だった —
+    // simulateBattleはMath.min(attackerDeck.length, defenderDeck.length)で短い方に
+    // 合わせて対戦するため、1枚デッキは事実上その1回の有利な当たりだけで勝敗が決まってしまう。
+    if (attackerDeckCardIds.length !== REQUIRED_DECK_SIZE) {
+      throw new functions.https.HttpsError("invalid-argument", "デッキは5枚である必要があります");
+    }
+    if (new Set(attackerDeckCardIds).size !== attackerDeckCardIds.length) {
+      throw new functions.https.HttpsError("invalid-argument", "デッキに同じカードを重複させることはできません");
     }
 
     // 対戦相手デッキはpvpMatchがサーバー側に保存した記録から復元する。

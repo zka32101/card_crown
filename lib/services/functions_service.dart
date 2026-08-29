@@ -192,6 +192,47 @@ class FunctionsService {
     return Map<String, dynamic>.from(result.data as Map);
   }
 
+  // カード作成（サーバーサイド・コスト帯の予算範囲チェックとコイン消費をアトミックに
+  // 行う。ステータス値はcard_creation_screen_v2.dartのガチャ演出が生成しうる範囲を
+  // 超えていると拒否される。attackPower/defensePower/speedはpvpBattleの実ダメージ
+  // 計算にそのまま使われるため、クライアントの直接Firestore書き込みは許可していない）
+  static Future<Map<String, dynamic>> createCard({
+    required String attribute,
+    required int cost,
+    required int attackPower,
+    required int defensePower,
+    required int speed,
+    required String cardNameJp,
+    String? cardNameEn,
+    String? imageUrl,
+    String? coCreatorName,
+    required bool isVip,
+  }) async {
+    final callable = _functions.httpsCallable('createCard');
+    final result = await callable.call({
+      'attribute': attribute,
+      'cost': cost,
+      'attackPower': attackPower,
+      'defensePower': defensePower,
+      'speed': speed,
+      'cardNameJp': cardNameJp,
+      if (cardNameEn != null) 'cardNameEn': cardNameEn,
+      if (imageUrl != null) 'imageUrl': imageUrl,
+      if (coCreatorName != null) 'coCreatorName': coCreatorName,
+      'isVip': isVip,
+    });
+    return Map<String, dynamic>.from(result.data as Map);
+  }
+
+  // カード特訓・レベルアップ（サーバーサイド・レベル上限とコイン消費を検証してから
+  // アトミックに+1する。levelもpvpBattleの実ダメージ計算に使われるため同様の理由で
+  // クライアントの直接Firestore書き込みは許可していない）
+  static Future<Map<String, dynamic>> levelUpCard({required String cardId}) async {
+    final callable = _functions.httpsCallable('levelUpCard');
+    final result = await callable.call({'cardId': cardId});
+    return Map<String, dynamic>.from(result.data as Map);
+  }
+
   // シーズンリワード請求（サーバーサイド・ランク到達判定とジェム/コイン付与を
   // アトミックに行う。unlockedRewardsはpvpBattle同様クライアントの直接書き込みを
   // 許可していないため、必ずこのCloud Function経由で行う）
@@ -204,6 +245,14 @@ class FunctionsService {
       'seasonId': seasonId,
       'rewardId': rewardId,
     });
+    return Map<String, dynamic>.from(result.data as Map);
+  }
+
+  // シーズンランキング取得（サーバーサイド集計。クライアントからusersコレクションを
+  // 横断読み取りする権限は無いため、Admin SDK経由でこのCloud Functionが代行する）
+  static Future<Map<String, dynamic>> getSeasonLeaderboard({required String seasonId}) async {
+    final callable = _functions.httpsCallable('getSeasonLeaderboard');
+    final result = await callable.call({'seasonId': seasonId});
     return Map<String, dynamic>.from(result.data as Map);
   }
 }

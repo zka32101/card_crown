@@ -33,6 +33,16 @@
         { "fieldPath": "cardId", "order": "ASCENDING" },
         { "fieldPath": "rentalEnd", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "seasonProgress",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "seasonId", "order": "ASCENDING" },
+        { "fieldPath": "currentRank", "order": "DESCENDING" },
+        { "fieldPath": "currentRankPoints", "order": "DESCENDING" },
+        { "fieldPath": "totalSeasonPoints", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
