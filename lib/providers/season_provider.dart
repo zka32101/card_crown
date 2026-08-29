@@ -1,8 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/season.dart';
+import '../services/functions_service.dart';
 import 'auth_provider.dart';
+import 'game_state_provider.dart';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Providers - Seasons System
@@ -217,146 +220,42 @@ final seasonLeaderboardProvider = FutureProvider.family<List<UserSeasonProgress>
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Functions - Season Progress Updates
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 勝利/敗北時のシーズン進捗更新（ランク・ポイント・battlesWon/Played）は、
+// PvPバトルを実行するpvpBattle Cloud Function内でサーバー権威で行われる。
+// lib/providers/game_state_provider.dart の myPlayerRankProvider（レーティング）と
+// 同じ方針で、ここには「勝利/敗北をローカルで反映する」ような更新手段を意図的に
+// 置かない —— かつてはここに直接Firestoreへ書き込む関数があったが、どこからも
+// 呼ばれておらず、しかもクライアントの自己申告をそのまま信用する実装だったため、
+// 実際の対戦結果と無関係にランク/ポイントを詐取できてしまう欠陥だった
+// （firestore.rulesでもseasonProgressへのクライアント書き込みは禁止済み）。
 
-/// シーズン進捗を更新（バトル勝利時）
-Future<bool> updateSeasonProgressOnWin(
-  Ref ref, {
-  required String userId,
-  required String seasonId,
-  required int pointsGained,
-}) async {
-  try {
-    final userDocRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('seasonProgress')
-        .doc(seasonId);
-
-    final doc = await userDocRef.get();
-    UserSeasonProgress progress;
-
-    if (!doc.exists) {
-      progress = UserSeasonProgress(
-        seasonId: seasonId,
-        userId: userId,
-        joinedAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-    } else {
-      progress = UserSeasonProgress.fromMap(doc.data() ?? {});
-    }
-
-    // 勝利数とポイントを更新
-    var newRankPoints = progress.currentRankPoints + pointsGained;
-    var newRank = progress.currentRank;
-    var newHighestRank = progress.highestRank;
-
-    // ランクアップ判定（100ポイントで次のランクへ）
-    while (newRankPoints >= 100) {
-      newRankPoints -= 100;
-      newRank += 1;
-      if (newRank > newHighestRank) {
-        newHighestRank = newRank;
-      }
-    }
-
-    // 更新データ
-    final updatedProgress = progress.copyWith(
-      battlesWon: progress.battlesWon + 1,
-      battlesPlayed: progress.battlesPlayed + 1,
-      currentRank: newRank,
-      currentRankPoints: newRankPoints,
-      totalSeasonPoints: progress.totalSeasonPoints + pointsGained,
-      highestRank: newHighestRank,
-      updatedAt: DateTime.now(),
-    );
-
-    await userDocRef.set(updatedProgress.toMap(), SetOptions(merge: true));
-    return true;
-  } catch (e) {
-    debugPrint('Error updating season progress on win: $e');
-    return false;
-  }
-}
-
-/// シーズン進捗を更新（バトル敗北時）
-Future<bool> updateSeasonProgressOnLoss(
-  Ref ref, {
-  required String userId,
-  required String seasonId,
-}) async {
-  try {
-    final userDocRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('seasonProgress')
-        .doc(seasonId);
-
-    final doc = await userDocRef.get();
-    UserSeasonProgress progress;
-
-    if (!doc.exists) {
-      progress = UserSeasonProgress(
-        seasonId: seasonId,
-        userId: userId,
-        joinedAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-    } else {
-      progress = UserSeasonProgress.fromMap(doc.data() ?? {});
-    }
-
-    // 敗北数をカウント
-    final updatedProgress = progress.copyWith(
-      battlesPlayed: progress.battlesPlayed + 1,
-      updatedAt: DateTime.now(),
-    );
-
-    await userDocRef.set(updatedProgress.toMap(), SetOptions(merge: true));
-    return true;
-  } catch (e) {
-    debugPrint('Error updating season progress on loss: $e');
-    return false;
-  }
-}
-
-/// リワードを請求（ランク到達時）
-Future<bool> claimSeasonReward(
-  Ref ref, {
-  required String userId,
+/// シーズンリワードを請求（ランク到達時・サーバー権威）。
+/// ランク到達判定・請求済みチェック・ジェム/コイン付与はclaimSeasonReward
+/// Cloud Function側でアトミックに行う。成功時はローカルウォレットにも反映してnullを返し、
+/// 失敗時（ランク不足・請求済みなど）はサーバー側のエラーメッセージを返す。
+Future<String?> claimSeasonReward(
+  WidgetRef ref, {
   required String seasonId,
   required String rewardId,
 }) async {
   try {
-    final userDocRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('seasonProgress')
-        .doc(seasonId);
-
-    final doc = await userDocRef.get();
-    if (!doc.exists) {
-      return false;
-    }
-
-    final progress = UserSeasonProgress.fromMap(doc.data() ?? {});
-
-    // 既に請求済みの場合はスキップ
-    if (progress.unlockedRewards.contains(rewardId)) {
-      return false;
-    }
-
-    // リワードを追加
-    final updatedRewards = [...progress.unlockedRewards, rewardId];
-    final updatedProgress = progress.copyWith(
-      unlockedRewards: updatedRewards,
-      updatedAt: DateTime.now(),
+    final result = await FunctionsService.claimSeasonReward(
+      seasonId: seasonId,
+      rewardId: rewardId,
     );
-
-    await userDocRef.set(updatedProgress.toMap(), SetOptions(merge: true));
-    return true;
-  } catch (e) {
-    debugPrint('Error claiming season reward: $e');
-    return false;
+    final gemsGranted = (result['gemsGranted'] as int?) ?? 0;
+    final coinsGranted = (result['coinsGranted'] as int?) ?? 0;
+    if (gemsGranted > 0 || coinsGranted > 0) {
+      final wallet = ref.read(walletProvider);
+      ref.read(walletProvider.notifier).state = wallet.copyWith(
+        gemBalance: wallet.gemBalance + gemsGranted,
+        coinBalance: wallet.coinBalance + coinsGranted,
+      );
+    }
+    return null;
+  } on FirebaseFunctionsException catch (e) {
+    return e.message ?? 'unknown error';
+  } catch (_) {
+    return 'unknown error';
   }
 }

@@ -286,6 +286,100 @@ interface PvpBattleRequest {
 // pvpMatch記録の有効期限（この時間を過ぎたmatchIdは失効させ、古いマッチの使い回しを防ぐ）
 const MATCH_TTL_MS = 10 * 60 * 1000;
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// シーズン進捗更新（レーティングと同じくサーバー権威で行う）
+// lib/providers/game_state_provider.dart の myPlayerRankProvider と同じ方針で、
+// クライアント側に「勝利/敗北をローカルで反映する」ような更新手段は意図的に置かない
+// —— そちらもかつて更新経路が存在せずランク表示が永久固定されるバグだった。
+// シーズン進捗（users/{uid}/seasonProgress/{seasonId}）もfirestore.rulesでクライアントからの
+// 直接書き込みを禁止し、このCloud Functionのみが更新できるようにしている。
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const SEASON_POINTS_PER_WIN = 20; // 100ポイントで1ランクなので5連勝で1ランクアップ
+const SEASON_POINTS_PER_TIER = 100;
+
+interface SeasonProgressResult {
+  seasonId: string;
+  pointsGained: number;
+  rankedUp: boolean;
+  newRank: number;
+}
+
+// アクティブシーズンが存在しない/取得に失敗した場合はnullを返し、呼び出し側で
+// バトル結果自体には影響させずシーズン進捗更新だけを静かにスキップする。
+async function updateSeasonProgress(
+  userId: string,
+  attackerWon: boolean
+): Promise<SeasonProgressResult | null> {
+  try {
+    const now = admin.firestore.Timestamp.now();
+    const seasonSnap = await admin.firestore()
+      .collection("seasons")
+      .where("startDate", "<=", now)
+      .where("endDate", ">", now)
+      .orderBy("startDate", "desc")
+      .limit(1)
+      .get();
+    if (seasonSnap.empty) return null;
+
+    const seasonDoc = seasonSnap.docs[0];
+    const seasonId = seasonDoc.id;
+    const maxRankTier: number = seasonDoc.data().maxRankTier ?? 10;
+    const pointsGained = attackerWon ? SEASON_POINTS_PER_WIN : 0;
+
+    const progressRef = admin.firestore()
+      .collection("users").doc(userId)
+      .collection("seasonProgress").doc(seasonId);
+
+    return await admin.firestore().runTransaction(async (tx) => {
+      const doc = await tx.get(progressRef);
+      const before = doc.data() ?? {};
+      const currentRank: number = before.currentRank ?? 1;
+      const currentRankPoints: number = before.currentRankPoints ?? 0;
+      const highestRank: number = before.highestRank ?? 1;
+      const totalSeasonPoints: number = before.totalSeasonPoints ?? 0;
+      const battlesWon: number = before.battlesWon ?? 0;
+      const battlesPlayed: number = before.battlesPlayed ?? 0;
+
+      let newRank = currentRank;
+      let newRankPoints = currentRankPoints + pointsGained;
+      while (newRankPoints >= SEASON_POINTS_PER_TIER && newRank < maxRankTier) {
+        newRankPoints -= SEASON_POINTS_PER_TIER;
+        newRank += 1;
+      }
+      // 最大ランクに達したら、それ以上はランクポイントを溜め込まない
+      if (newRank >= maxRankTier) {
+        newRank = maxRankTier;
+        newRankPoints = Math.min(newRankPoints, SEASON_POINTS_PER_TIER - 1);
+      }
+      const newHighestRank = Math.max(highestRank, newRank);
+
+      tx.set(progressRef, {
+        seasonId,
+        userId,
+        currentRank: newRank,
+        currentRankPoints: newRankPoints,
+        totalSeasonPoints: totalSeasonPoints + pointsGained,
+        battlesWon: battlesWon + (attackerWon ? 1 : 0),
+        battlesPlayed: battlesPlayed + 1,
+        highestRank: newHighestRank,
+        unlockedRewards: before.unlockedRewards ?? [],
+        joinedAt: before.joinedAt ?? admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, {merge: true});
+
+      return {
+        seasonId,
+        pointsGained,
+        rankedUp: newRank > currentRank,
+        newRank,
+      };
+    });
+  } catch (e) {
+    console.error(`Failed to update season progress for ${userId}:`, e);
+    return null;
+  }
+}
+
 export const pvpBattle = functions
   .region("asia-northeast1")
   .runWith({timeoutSeconds: 30})
@@ -359,5 +453,7 @@ export const pvpBattle = functions
       return updatedRating;
     });
 
-    return {...result, newRating, ratingDelta};
+    const season = await updateSeasonProgress(userId, result.attackerWon);
+
+    return {...result, newRating, ratingDelta, season};
   });

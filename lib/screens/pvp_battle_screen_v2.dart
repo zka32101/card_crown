@@ -7,6 +7,7 @@ import '../models/battle_models.dart';
 import '../services/battle_engine.dart';
 import '../services/functions_service.dart';
 import '../providers/game_state_provider.dart';
+import '../providers/season_provider.dart';
 import '../services/sound_service.dart';
 import '../widgets/card_widget.dart';
 import 'deck_selection_screen_v2.dart';
@@ -72,6 +73,9 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
   String _opponentName = '';
   String _opponentTier = '';
   BattleResult? _result;
+  // pvpBattle Cloud Functionが返すシーズン進捗の反映結果（アクティブシーズンが
+  // 無い場合や、サーバー呼び出し自体がフォールバックした場合はnullのまま）
+  Map<String, dynamic>? _seasonResult;
   List<BattleLog> _displayedLogs = [];
   int _myHp = 30;
   int _aiHp = 30;
@@ -226,6 +230,11 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
         matchId: matchId,
         attackerDeckCardIds: _myDeck!.map((c) => c.cardId).toList(),
       );
+      _seasonResult = response['season'] as Map<String, dynamic>?;
+      if (_seasonResult != null) {
+        // シーズン進捗がサーバー側で更新されたので、画面に表示中の進捗を再取得させる
+        ref.invalidate(userCurrentSeasonProgressProvider);
+      }
       final rawLogs = (response['logs'] as List).cast<Map>();
       _result = BattleResult(
         attackerWon: response['attackerWon'] as bool,
@@ -338,6 +347,9 @@ class _PvpBattleScreenV2State extends ConsumerState<PvpBattleScreenV2>
           opponentDeck: _opponentDeck!,
           opponentName: _opponentName,
           opponentTier: _opponentTier,
+          seasonPointsGained: _seasonResult?['pointsGained'] as int?,
+          seasonRankedUp: _seasonResult?['rankedUp'] as bool? ?? false,
+          seasonNewRank: _seasonResult?['newRank'] as int?,
         ),
       ),
     );

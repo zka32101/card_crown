@@ -688,6 +688,7 @@ class SeasonRewardsScreen extends ConsumerWidget {
 
                           return _buildRewardTile(
                             context,
+                            season.id,
                             reward,
                             isUnlocked,
                             isClaimed,
@@ -714,6 +715,7 @@ class SeasonRewardsScreen extends ConsumerWidget {
 
   Widget _buildRewardTile(
     BuildContext context,
+    String seasonId,
     SeasonRankReward reward,
     bool isUnlocked,
     bool isClaimed,
@@ -810,17 +812,7 @@ class SeasonRewardsScreen extends ConsumerWidget {
                   ],
                 ),
                 if (isUnlocked && !isClaimed)
-                  ElevatedButton(
-                    onPressed: () {
-                      // Claim reward logic will be implemented
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Kingdom.joyGold,
-                      foregroundColor: Kingdom.night,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    ),
-                    child: Text(t.season_claim, style: const TextStyle(fontSize: 11)),
-                  )
+                  _ClaimRewardButton(seasonId: seasonId, reward: reward)
                 else if (isClaimed)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -838,6 +830,68 @@ class SeasonRewardsScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// リワード請求ボタン — claimSeasonReward Cloud Function経由でサーバー側の
+// ランク到達判定・請求済みチェック・ジェム/コイン付与をアトミックに行う。
+// タイル単体で読込中状態を持つため、リスト全体を巻き込まないConsumerStatefulWidgetにしている。
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+class _ClaimRewardButton extends ConsumerStatefulWidget {
+  final String seasonId;
+  final SeasonRankReward reward;
+
+  const _ClaimRewardButton({required this.seasonId, required this.reward});
+
+  @override
+  ConsumerState<_ClaimRewardButton> createState() => _ClaimRewardButtonState();
+}
+
+class _ClaimRewardButtonState extends ConsumerState<_ClaimRewardButton> {
+  bool _claiming = false;
+
+  Future<void> _claim() async {
+    setState(() => _claiming = true);
+    final error = await claimSeasonReward(
+      ref,
+      seasonId: widget.seasonId,
+      rewardId: widget.reward.id,
+    );
+    if (!mounted) return;
+    setState(() => _claiming = false);
+    final t = AppLocalizations.of(context)!;
+    if (error == null) {
+      // 請求済みリワード一覧が変わったので再取得する
+      ref.invalidate(userCurrentSeasonProgressProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.season_rewardClaimed)),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.season_claimFailed)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    return ElevatedButton(
+      onPressed: _claiming ? null : _claim,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Kingdom.joyGold,
+        foregroundColor: Kingdom.night,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      ),
+      child: _claiming
+          ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Kingdom.night),
+            )
+          : Text(t.season_claim, style: const TextStyle(fontSize: 11)),
     );
   }
 }

@@ -191,4 +191,19 @@ class FunctionsService {
     });
     return Map<String, dynamic>.from(result.data as Map);
   }
+
+  // シーズンリワード請求（サーバーサイド・ランク到達判定とジェム/コイン付与を
+  // アトミックに行う。unlockedRewardsはpvpBattle同様クライアントの直接書き込みを
+  // 許可していないため、必ずこのCloud Function経由で行う）
+  static Future<Map<String, dynamic>> claimSeasonReward({
+    required String seasonId,
+    required String rewardId,
+  }) async {
+    final callable = _functions.httpsCallable('claimSeasonReward');
+    final result = await callable.call({
+      'seasonId': seasonId,
+      'rewardId': rewardId,
+    });
+    return Map<String, dynamic>.from(result.data as Map);
+  }
 }
