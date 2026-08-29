@@ -1,0 +1,12 @@
+# android/key.properties のテンプレート。
+# 実際の値を入れたファイルは android/key.properties として保存すること
+# （.gitignore対象。絶対にコミットしない）。
+#
+# storeFile は android/app/build.gradle.kts の file(...) で解決されるため、
+# android/app/ ディレクトリからの相対パスで指定する。
+# 例えば keystore を android/app/card_rivals_release.jks に置いた場合は
+# 下記の値のままでよい。
+storeFile=card_rivals_release.jks
+storePassword=CHANGE_ME
+keyAlias=card_rivals
+keyPassword=CHANGE_ME

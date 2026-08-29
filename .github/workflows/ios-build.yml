@@ -83,6 +83,21 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      # ios/Runner/GoogleService-Info.plist は.gitignore対象のためリポジトリに含まれていない。
+      # build-ios（コンパイル可否のみの検証）はXcodeプロジェクトファイル自体がこのファイルを
+      # 参照していないため無くてもビルドが通るが、このジョブはTestFlightへ実際に配布する
+      # ビルドなので、無いとFirebase初期化が実機で失敗する。deploy.ymlのgoogle-services.json
+      # 復元と同じパターンでSecretsから復元する。
+      - name: Restore GoogleService-Info.plist
+        env:
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+        run: |
+          if [ -z "$GOOGLE_SERVICE_INFO_PLIST" ]; then
+            echo "::error::Secret GOOGLE_SERVICE_INFO_PLIST is not set. Add your Firebase ios/Runner/GoogleService-Info.plist content as a repository secret (Settings > Secrets and variables > Actions) named GOOGLE_SERVICE_INFO_PLIST."
+            exit 1
+          fi
+          echo "$GOOGLE_SERVICE_INFO_PLIST" > ios/Runner/GoogleService-Info.plist
+
       # 証明書とProvisioning Profileを一時キーチェーンにインポートする
       - name: Import signing certificate and provisioning profile
         env:

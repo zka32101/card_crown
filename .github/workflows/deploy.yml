@@ -34,6 +34,25 @@ jobs:
           fi
           echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
 
+      # リリース署名鍵（android/key.properties + keystore本体）も同様に.gitignore対象。
+      # ANDROID_KEYSTORE_BASE64が未設定の場合は復元をスキップし、android/app/build.gradle.kts
+      # 側のフォールバックによりdebug鍵での署名でビルドを継続する
+      # （Play Storeへは配布できないが、動作確認用のビルド自体は失敗させない）。
+      - name: Restore Android release keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::Secret ANDROID_KEYSTORE_BASE64 is not set. Building with the debug signing key (not suitable for Play Store)."
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/card_rivals_release.jks
+          printf 'storeFile=card_rivals_release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" > android/key.properties
+
       - name: Build APK
         run: flutter build apk --release
 
